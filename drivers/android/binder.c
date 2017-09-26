@@ -76,6 +76,8 @@
 #include "binder_trace.h"
 #include <trace/hooks/binder.h>
 
+#include "../../kernel/sched/sched.h"
+
 static HLIST_HEAD(binder_deferred_list);
 static DEFINE_MUTEX(binder_deferred_lock);
 
@@ -531,10 +533,10 @@ static void binder_wakeup_poll_threads_ilocked(struct binder_proc *proc,
 		if (thread->looper & BINDER_LOOPER_STATE_POLL &&
 		    binder_available_for_proc_work_ilocked(thread)) {
 #ifdef CONFIG_SCHED_WALT
-			if (thread->task && current->signal &&
-				(current->signal->oom_score_adj == 0) &&
-				((current->prio < DEFAULT_PRIO) ||
-					(thread->task->group_leader->prio < MAX_RT_PRIO)))
+			if (thread->task && ((task_in_related_thread_group(current) &&
+					thread->task->group_leader->prio < MAX_RT_PRIO) ||
+					(current->group_leader->prio < MAX_RT_PRIO &&
+					task_in_related_thread_group(thread->task))))
 				thread->task->wts.low_latency |=
 						WALT_LOW_LATENCY_BINDER;
 #endif
