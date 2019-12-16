@@ -232,7 +232,6 @@ void update_rq_clock(struct rq *rq)
 static inline void
 rq_csd_init(struct rq *rq, call_single_data_t *csd, smp_call_func_t func)
 {
-	csd->hrtick_csd_pending = 0;
 	csd->flags = 0;
 	csd->func = func;
 	csd->info = rq;
@@ -287,7 +286,6 @@ static void __hrtick_start(void *arg)
 
 	rq_lock(rq, &rf);
 	__hrtick_restart(rq);
-	rq->hrtick_csd_pending = 0;
 	rq_unlock(rq, &rf);
 }
 
@@ -311,12 +309,10 @@ void hrtick_start(struct rq *rq, u64 delay)
 
 	hrtimer_set_expires(timer, time);
 
-	if (rq == this_rq()) {
+	if (rq == this_rq())
 		__hrtick_restart(rq);
-	} else if (!rq->hrtick_csd_pending) {
+	else
 		smp_call_function_single_async(cpu_of(rq), &rq->hrtick_csd);
-		rq->hrtick_csd_pending = 1;
-	}
 }
 
 #else
