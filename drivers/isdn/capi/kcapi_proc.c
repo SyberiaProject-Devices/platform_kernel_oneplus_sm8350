@@ -218,11 +218,8 @@ static int capi_driver_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
-static const struct seq_operations seq_capi_driver_ops = {
-	.start	= capi_driver_start,
-	.next	= capi_driver_next,
-	.stop	= capi_driver_stop,
-	.show	= capi_driver_show,
+static const struct proc_ops empty_proc_ops = {
+	.proc_read	= empty_read,
 };
 
 // ---------------------------------------------------------------------------
@@ -236,7 +233,7 @@ kcapi_proc_init(void)
 	proc_create_seq("capi/contrstats",   0, NULL, &seq_contrstats_ops);
 	proc_create_seq("capi/applications", 0, NULL, &seq_applications_ops);
 	proc_create_seq("capi/applstats",    0, NULL, &seq_applstats_ops);
-	proc_create_seq("capi/driver",       0, NULL, &seq_capi_driver_ops);
+	proc_create("capi/driver",           0, NULL, &empty_proc_ops);
 }
 
 void __exit
