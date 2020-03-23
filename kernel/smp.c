@@ -701,7 +701,6 @@ static inline void free_boot_cpu_mask(void)
 void __init smp_init(void)
 {
 	int num_nodes, num_cpus;
-	unsigned int cpu;
 
 	/*
 	 * Ensure struct irq_work layout matches so that
@@ -726,14 +725,8 @@ void __init smp_init(void)
 
 	pr_info("Bringing up secondary CPUs ...\n");
 
-	/* FIXME: This should be done in userspace --RR */
-	for_each_present_cpu(cpu) {
-		if (num_online_cpus() >= setup_max_cpus)
-			break;
-		if (!cpu_online(cpu) && boot_cpu(cpu))
-			cpu_up(cpu);
-	}
 	free_boot_cpu_mask();
+	bringup_nonboot_cpus(setup_max_cpus);
 
 	num_nodes = num_online_nodes();
 	num_cpus  = num_online_cpus();
