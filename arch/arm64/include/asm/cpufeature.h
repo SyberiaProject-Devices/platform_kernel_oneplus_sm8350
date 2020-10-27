@@ -543,9 +543,15 @@ static inline bool supports_clearbhb(int scope)
 						    ID_AA64ISAR2_CLEARBHB_SHIFT);
 }
 
+const struct cpumask *system_32bit_el0_cpumask(void);
+DECLARE_STATIC_KEY_FALSE(arm64_mismatched_32bit_el0);
+
 static inline bool system_supports_32bit_el0(void)
 {
-	return cpus_have_const_cap(ARM64_HAS_32BIT_EL0);
+	u64 pfr0 = read_sanitised_ftr_reg(SYS_ID_AA64PFR0_EL1);
+
+	return static_branch_unlikely(&arm64_mismatched_32bit_el0) ||
+	       id_aa64pfr0_32bit_el0(pfr0);
 }
 
 static inline bool system_supports_4kb_granule(void)
