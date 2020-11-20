@@ -18,6 +18,7 @@
 #include <linux/cpu.h>
 #include <linux/blk-mq.h>
 #include <linux/cpufreq.h>
+#include <linux/thermal.h>
 
 #include "ufshcd.h"
 #include "ufshcd-pltfrm.h"
@@ -2883,6 +2884,41 @@ static void ufs_qcom_parse_pm_level(struct ufs_hba *hba)
 	}
 }
 
+/* Returns the max mitigation level supported */
+static int ufs_qcom_get_max_therm_state(struct thermal_cooling_device *tcd,
+				  unsigned long *data)
+{
+	*data = UFS_QCOM_LVL_MAX_THERM;
+
+	return 0;
+}
+
+/* Returns the current mitigation level */
+static int ufs_qcom_get_cur_therm_state(struct thermal_cooling_device *tcd,
+				  unsigned long *data)
+{
+	struct ufs_hba *hba = dev_get_drvdata(tcd->devdata);
+	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
+
+	*data = host->uqt.curr_state;
+
+	return 0;
+}
+
+/* Sets the mitigation level to requested level */
+static int ufs_qcom_set_cur_therm_state(struct thermal_cooling_device *tcd,
+				  unsigned long data)
+{
+	dev_err(tcd->devdata, "Trying to set UFS thermal state (%d)\n", data);
+	return -EOPNOTSUPP;
+}
+
+struct thermal_cooling_device_ops ufs_thermal_ops = {
+	.get_max_state = ufs_qcom_get_max_therm_state,
+	.get_cur_state = ufs_qcom_get_cur_therm_state,
+	.set_cur_state = ufs_qcom_set_cur_therm_state,
+};
+
 /**
  * ufs_qcom_init - bind phy with controller
  * @hba: host controller instance
@@ -2900,6 +2936,7 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct ufs_qcom_host *host;
 	struct resource *res;
+	struct ufs_qcom_thermal *ut;
 
 	host = devm_kzalloc(dev, sizeof(*host), GFP_KERNEL);
 	if (!host) {
@@ -2911,6 +2948,7 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 	/* Make a two way bind between the qcom host and the hba */
 	host->hba = hba;
 	ufshcd_set_variant(hba, host);
+	ut = &host->uqt;
 
 	/* Setup the reset control of HCI */
 	host->core_reset = devm_reset_control_get(hba->dev, "rst");
@@ -3080,6 +3118,17 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 					  unsigned int,
 					  void __user *))ufs_qcom_ioctl;
 #endif
+
+	ut->tcd = devm_thermal_of_cooling_device_register(dev,
+							  dev->of_node,
+							  "ufs",
+							  dev,
+							  &ufs_thermal_ops);
+	if (IS_ERR(ut->tcd))
+		dev_warn(dev, "Thermal mitigation registration failed: %d\n",
+			 PTR_ERR(ut->tcd));
+	else
+		host->uqt.curr_state = UFS_QCOM_LVL_NO_THERM;
 
 	ufs_qcom_save_host_ptr(hba);
 

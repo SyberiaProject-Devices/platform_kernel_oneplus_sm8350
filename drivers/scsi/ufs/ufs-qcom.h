@@ -306,6 +306,17 @@ enum constraint {
 	QOS_MAX,
 };
 
+enum ufs_qcom_therm_lvl {
+	UFS_QCOM_LVL_NO_THERM, /* No thermal mitigation */
+	UFS_QCOM_LVL_AGGR_THERM, /* Aggressive thermal mitigation */
+	UFS_QCOM_LVL_MAX_THERM, /* Max thermal mitigation */
+};
+
+struct ufs_qcom_thermal {
+	struct thermal_cooling_device *tcd;
+	unsigned long curr_state;
+};
+
 struct ufs_qcom_host {
 	/*
 	 * Set this capability if host controller supports the QUniPro mode
@@ -382,6 +393,7 @@ struct ufs_qcom_host {
 	bool bypass_g4_cfgready;
 	bool is_dt_pm_level_read;
 	unsigned long load_delay_ms;
+	struct ufs_qcom_thermal uqt;
 #define NUM_REQS_HIGH_THRESH 64
 #define NUM_REQS_LOW_THRESH 32
 	atomic_t num_reqs_threshold;
