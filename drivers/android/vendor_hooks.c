@@ -25,6 +25,7 @@
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_UFS_DRIVER)
 #include <trace/hooks/oplus_ufs.h>
 #endif
+#include <trace/hooks/cpufreq.h>
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -103,3 +104,5 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_dequeue_task_fair);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_cpumask_any_and_distribute);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_set_cpus_allowed_comm);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_sched_setaffinity_early);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_show_max_freq);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_freq_table_limits);
