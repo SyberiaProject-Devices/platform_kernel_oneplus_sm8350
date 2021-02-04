@@ -6639,7 +6639,6 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 	unsigned int target_nr_rtg_high_prio = UINT_MAX;
 	bool rtg_high_prio_task = task_rtg_high_prio(p);
 	cpumask_t visit_cpus;
-	bool active_task = task_on_rq_queued(p);
 
 	/* Find start CPU based on boost value */
 	start_cpu = fbt_env->start_cpu;
@@ -6657,9 +6656,6 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 		stop_index = 0;
 		most_spare_wake_cap = LONG_MIN;
 	}
-
-	if (active_task)
-		most_spare_wake_cap = ULONG_MAX;
 
 	/* fast path for prev_cpu */
 	if (((capacity_orig_of(prev_cpu) == capacity_orig_of(start_cpu)) ||
@@ -6793,12 +6789,6 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 			}
 
 			/*
-			 * Consider only idle CPUs for active migration.
-			 */
-			if (active_task)
-				continue;
-
-			/*
 			 * Try to spread the rtg high prio tasks so that they
 			 * don't preempt each other. This is a optimisitc
 			 * check assuming rtg high prio can actually preempt
@@ -6864,7 +6854,7 @@ out:
 	trace_sched_find_best_target(p, min_util, start_cpu,
 			     best_idle_cpu, most_spare_cap_cpu,
 			     target_cpu, order_index, end_index,
-			     fbt_env->skip_cpu, active_task);
+			     fbt_env->skip_cpu, task_on_rq_queued(p));
 }
 
 static inline unsigned long
