@@ -915,11 +915,11 @@ TRACE_EVENT(sched_load_balance_skip_tasks,
 	TP_fast_assign(
 		__entry->scpu           = scpu;
 		__entry->src_util_cum   =
-				cpu_rq(scpu)->wrq.cum_window_demand_scaled;
+				cpu_util_cum(scpu);
 		__entry->grp_type       = grp_type;
 		__entry->dcpu           = dcpu;
 		__entry->dst_util_cum   =
-				cpu_rq(dcpu)->wrq.cum_window_demand_scaled;
+				cpu_util_cum(dcpu);
 		__entry->pid            = pid;
 		__entry->affinity       = affinity;
 		__entry->task_util      = task_util;
@@ -959,7 +959,7 @@ TRACE_EVENT(sched_cpu_util,
 		__entry->cpu                = cpu;
 		__entry->nr_running         = cpu_rq(cpu)->nr_running;
 		__entry->cpu_util           = cpu_util(cpu);
-		__entry->cpu_util_cum       = cpu_util_cum(cpu, 0);
+		__entry->cpu_util_cum       = cpu_util_cum(cpu);
 		__entry->capacity_curr      = capacity_curr_of(cpu);
 		__entry->capacity           = capacity_of(cpu);
 		__entry->capacity_orig      = capacity_orig_of(cpu);

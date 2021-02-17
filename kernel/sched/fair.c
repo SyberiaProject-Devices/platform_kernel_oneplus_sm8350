@@ -6760,17 +6760,6 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 			}
 
 			/*
-			 * Cumulative demand may already be accounting for the
-			 * task. If so, add just the boost-utilization to
-			 * the cumulative demand of the cpu.
-			 */
-			if (task_in_cum_window_demand(cpu_rq(i), p))
-				new_util_cuml = cpu_util_cum(i, 0) +
-						min_util - task_util(p);
-			else
-				new_util_cuml = cpu_util_cum(i, 0) + min_util;
-
-			/*
 			 * Keep track of runnables for each CPU, if none of the
 			 * CPUs have spare capacity then use CPU with less
 			 * number of runnables.
@@ -6818,6 +6807,7 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 				if (this_complex_idle < best_complex_idle)
 					continue;
 
+				new_util_cuml = cpu_util_cum(i);
 				/*
 				 * Prefer shallowest over deeper idle state cpu,
 				 * of same capacity cpus.
@@ -8403,8 +8393,8 @@ int can_migrate_task(struct task_struct *p, struct lb_env *env)
 			unsigned long demand;
 
 			demand = task_util(p);
-			util_cum_dst = cpu_util_cum(env->dst_cpu, 0) + demand;
-			util_cum_src = cpu_util_cum(env->src_cpu, 0) - demand;
+			util_cum_dst = cpu_util_cum(env->dst_cpu) + demand;
+			util_cum_src = cpu_util_cum(env->src_cpu) - demand;
 
 			if (util_cum_dst > util_cum_src)
 				return 0;

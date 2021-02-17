@@ -171,7 +171,6 @@ struct walt_rq {
 	u64			prev_runnable_sum;
 	u64			nt_curr_runnable_sum;
 	u64			nt_prev_runnable_sum;
-	u64			cum_window_demand_scaled;
 	struct group_cpu_time	grp_time;
 	struct load_subtractions load_subs[NUM_TRACKED_WINDOWS];
 	DECLARE_BITMAP_ARRAY(top_tasks_bitmap,
@@ -2301,19 +2300,10 @@ static inline unsigned long cpu_util(int cpu)
 	return min_t(unsigned long, util, capacity_orig_of(cpu));
 }
 
-static inline unsigned long cpu_util_cum(int cpu, int delta)
+static inline unsigned long cpu_util_cum(int cpu)
 {
-	u64 util = cpu_rq(cpu)->cfs.avg.util_avg;
-	unsigned long capacity = capacity_orig_of(cpu);
 
-#ifdef CONFIG_SCHED_WALT
-	util = cpu_rq(cpu)->wrq.cum_window_demand_scaled;
-#endif
-	delta += util;
-	if (delta < 0)
-		return 0;
-
-	return (delta >= capacity) ? capacity : delta;
+	return READ_ONCE(cpu_rq(cpu)->cfs.avg.util_avg);
 }
 
 extern unsigned int capacity_margin_freq;
@@ -3168,20 +3158,6 @@ static inline void clear_reserved(int cpu)
 	struct rq *rq = cpu_rq(cpu);
 
 	clear_bit(CPU_RESERVED, &rq->wrq.walt_flags);
-}
-
-static inline bool
-task_in_cum_window_demand(struct rq *rq, struct task_struct *p)
-{
-	return cpu_of(rq) == task_cpu(p) && (p->on_rq ||
-		p->wts.last_sleep_ts >= rq->wrq.window_start);
-}
-
-static inline void walt_fixup_cum_window_demand(struct rq *rq, s64 scaled_delta)
-{
-	rq->wrq.cum_window_demand_scaled += scaled_delta;
-	if (unlikely((s64)rq->wrq.cum_window_demand_scaled < 0))
-		rq->wrq.cum_window_demand_scaled = 0;
 }
 
 extern unsigned long thermal_cap(int cpu);

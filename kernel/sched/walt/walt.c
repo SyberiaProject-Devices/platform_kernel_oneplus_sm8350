@@ -291,7 +291,6 @@ static inline void walt_rq_dump(int cpu)
 	SCHED_PRINT(rq->wrq.prev_runnable_sum);
 	SCHED_PRINT(rq->wrq.nt_curr_runnable_sum);
 	SCHED_PRINT(rq->wrq.nt_prev_runnable_sum);
-	SCHED_PRINT(rq->wrq.cum_window_demand_scaled);
 	SCHED_PRINT(rq->wrq.task_exec_scale);
 	SCHED_PRINT(rq->wrq.grp_time.curr_runnable_sum);
 	SCHED_PRINT(rq->wrq.grp_time.prev_runnable_sum);
@@ -346,8 +345,6 @@ static void fixup_walt_sched_stats_common(struct rq *rq, struct task_struct *p,
 
 	fixup_cumulative_runnable_avg(&rq->wrq.walt_stats, task_load_delta,
 				      pred_demand_delta);
-
-	walt_fixup_cum_window_demand(rq, task_load_delta);
 }
 
 static void rollover_cpu_window(struct rq *rq, bool full_window);
@@ -418,8 +415,6 @@ update_window_start(struct rq *rq, u64 wallclock, int event)
 	nr_windows = div64_u64(delta, sched_ravg_window);
 	rq->wrq.window_start += (u64)nr_windows * (u64)sched_ravg_window;
 
-	rq->wrq.cum_window_demand_scaled =
-			rq->wrq.walt_stats.cumulative_runnable_avg_scaled;
 	rq->wrq.prev_window_size = sched_ravg_window;
 
 	full_window = nr_windows > 1;
@@ -1039,18 +1034,6 @@ void fixup_busy_time(struct task_struct *p, int new_cpu)
 	update_window_start(dest_rq, wallclock, TASK_UPDATE);
 
 	update_task_cpu_cycles(p, new_cpu, wallclock);
-
-	/*
-	 * When a task is migrating during the wakeup, adjust
-	 * the task's contribution towards cumulative window
-	 * demand.
-	 */
-	if (pstate == TASK_WAKING && p->wts.last_sleep_ts >=
-				       src_rq->wrq.window_start) {
-		walt_fixup_cum_window_demand(src_rq,
-					     -(s64)p->wts.demand_scaled);
-		walt_fixup_cum_window_demand(dest_rq, p->wts.demand_scaled);
-	}
 
 	new_task = is_new_task(p);
 	/* Protected by rq_lock */
@@ -1988,8 +1971,6 @@ static void update_history(struct rq *rq, struct task_struct *p,
 		if (task_on_rq_queued(p))
 			fixup_walt_sched_stats_common(rq, p,
 					demand_scaled, pred_demand_scaled);
-		else if (rq->curr == p)
-			walt_fixup_cum_window_demand(rq, demand_scaled);
 	}
 
 	p->wts.demand = demand;
@@ -4130,7 +4111,6 @@ void walt_sched_init_rq(struct rq *rq)
 		BUG_ON(!rq->wrq.top_tasks[j]);
 		clear_top_tasks_bitmap(rq->wrq.top_tasks_bitmap[j]);
 	}
-	rq->wrq.cum_window_demand_scaled = 0;
 	rq->wrq.notif_pending = false;
 
 	rq->wrq.num_mvp_tasks = 0;
