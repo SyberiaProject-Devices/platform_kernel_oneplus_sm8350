@@ -20,6 +20,7 @@
 #include <trace/hooks/minidump.h>
 #include <trace/hooks/wqlockup.h>
 #include <trace/hooks/sysrqcrash.h>
+#include <trace/hooks/fs.h>
 #include <trace/hooks/cgroup.h>
 #include <trace/hooks/sys.h>
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_UFS_DRIVER)
@@ -99,3 +100,5 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_update_load_avg);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_remove_entity_load_avg);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_update_blocked_fair);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_update_rt_rq_load_avg);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ep_create_wakeup_source);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_timerfd_create);
