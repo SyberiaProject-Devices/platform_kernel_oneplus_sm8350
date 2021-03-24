@@ -178,6 +178,14 @@ DECLARE_RESTRICTED_HOOK(android_rvh_cpumask_any_and_distribute,
 		const struct cpumask *new_mask, int *dest_cpu),
 	TP_ARGS(p, cpu_valid_mask, new_mask, dest_cpu), 1);
 
+DECLARE_RESTRICTED_HOOK(android_rvh_set_cpus_allowed_comm,
+	TP_PROTO(struct task_struct *p, const struct cpumask *new_mask),
+	TP_ARGS(p, new_mask), 1);
+
+DECLARE_HOOK(android_vh_sched_setaffinity_early,
+	TP_PROTO(struct task_struct *p, const struct cpumask *new_mask, int *retval),
+	TP_ARGS(p, new_mask, retval));
+
 /* macro versions of hooks are no longer required */
 
 #endif /* _TRACE_HOOK_SCHED_H */

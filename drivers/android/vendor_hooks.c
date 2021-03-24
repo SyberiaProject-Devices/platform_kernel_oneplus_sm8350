@@ -101,3 +101,5 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_set_task_cpu);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_enqueue_task_fair);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_dequeue_task_fair);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_cpumask_any_and_distribute);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_set_cpus_allowed_comm);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_sched_setaffinity_early);
