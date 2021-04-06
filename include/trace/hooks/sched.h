@@ -90,11 +90,11 @@ DECLARE_RESTRICTED_HOOK(android_rvh_post_init_entity_util_avg,
 
 struct cfs_rq;
 DECLARE_RESTRICTED_HOOK(android_rvh_check_preempt_wakeup,
-    TP_PROTO(struct rq *rq, struct task_struct *p, bool *preempt, bool *nopreempt,
+	TP_PROTO(struct rq *rq, struct task_struct *p, bool *preempt, bool *nopreempt,
 		int wake_flags, struct sched_entity *se, struct sched_entity *pse,
 		int next_buddy_marked, unsigned int granularity),
-    TP_ARGS(rq, p, preempt, nopreempt, wake_flags, se, pse, next_buddy_marked,
-	    granularity), 1);
+	TP_ARGS(rq, p, preempt, nopreempt, wake_flags, se, pse, next_buddy_marked,
+			granularity), 1);
 
 DECLARE_RESTRICTED_HOOK(android_rvh_sched_fork,
 	TP_PROTO(struct task_struct *p),
