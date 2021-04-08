@@ -6594,6 +6594,17 @@ enum fastpaths {
 	PREV_CPU_FASTPATH,
 };
 
+static inline bool is_complex_sibling_idle(int cpu)
+{
+	if (is_min_capacity_cpu(cpu)) {
+		if (cpu % 2)
+			return available_idle_cpu(cpu - 1);
+		return available_idle_cpu(cpu + 1);
+	}
+
+	return false;
+}
+
 static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 					struct task_struct *p,
 					struct find_best_target_env *fbt_env)
@@ -6648,6 +6659,8 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 	for (cluster = 0; cluster < num_sched_clusters; cluster++) {
 		int best_idle_cpu_cluster = -1;
 		int target_cpu_cluster = -1;
+		int this_complex_idle = 0;
+		int best_complex_idle = 0;
 
 		target_max_spare_cap = 0;
 		best_idle_cuml_util = ULONG_MAX;
@@ -6744,6 +6757,11 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 			 * consumptions without affecting performance.
 			 */
 			if (idle_cpu(i)) {
+				this_complex_idle = is_complex_sibling_idle(i) ? 1 : 0;
+
+				if (this_complex_idle < best_complex_idle)
+					continue;
+
 				/*
 				 * Prefer shallowest over deeper idle state cpu,
 				 * of same capacity cpus.
@@ -6759,6 +6777,7 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 				shallowest_idle_cstate = idle_idx;
 				best_idle_cuml_util = new_util_cuml;
 				best_idle_cpu_cluster = i;
+				best_complex_idle = this_complex_idle;
 				continue;
 			}
 
