@@ -4379,6 +4379,9 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 	struct vm_fault vmf = {
 		.address = address,
 	};
+#ifdef CONFIG_NUMA
+	struct mempolicy *pol;
+#endif
 	pgd_t *pgd, pgdval;
 	p4d_t *p4d, p4dval;
 	pud_t pudval;
@@ -4442,8 +4445,6 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 		goto out_segv;
 
 #ifdef CONFIG_NUMA
-	struct mempolicy *pol;
-
 	/*
 	 * MPOL_INTERLEAVE implies additional checks in
 	 * mpol_misplaced() which are not compatible with the
