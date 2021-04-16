@@ -75,6 +75,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_find_busiest_group);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_map_util_freq);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_em_pd_energy);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_cgroup_set_task);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_cgroup_force_kthread_migration);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_syscall_prctl_finished);
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_UFS_DRIVER)
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_gen_proc_devinfo);

@@ -504,7 +504,7 @@ static ssize_t __cgroup1_procs_write(struct kernfs_open_file *of,
 	if (!cgrp)
 		return -ENODEV;
 
-	task = cgroup_procs_write_start(buf, threadgroup);
+	task = cgroup_procs_write_start(buf, threadgroup, cgrp);
 	ret = PTR_ERR_OR_ZERO(task);
 	if (ret)
 		goto out_unlock;

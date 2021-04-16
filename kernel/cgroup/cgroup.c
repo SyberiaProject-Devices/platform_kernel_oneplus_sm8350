@@ -61,6 +61,9 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/cgroup.h>
+#undef CREATE_TRACE_POINTS
+
+#include <trace/hooks/cgroup.h>
 
 #define CGROUP_FILE_NAME_MAX		(MAX_CGROUP_TYPE_NAMELEN +	\
 					 MAX_CFTYPE_NAME + 2)
@@ -2793,11 +2796,13 @@ int cgroup_attach_task(struct cgroup *dst_cgrp, struct task_struct *leader,
 	return ret;
 }
 
-struct task_struct *cgroup_procs_write_start(char *buf, bool threadgroup)
+struct task_struct *cgroup_procs_write_start(char *buf, bool threadgroup,
+					     struct cgroup *dst_cgrp)
 	__acquires(&cgroup_threadgroup_rwsem)
 {
 	struct task_struct *tsk;
 	pid_t pid;
+	bool force_migration = false;
 
 	if (kstrtoint(strstrip(buf), 0, &pid) || pid < 0)
 		return ERR_PTR(-EINVAL);
@@ -2818,13 +2823,16 @@ struct task_struct *cgroup_procs_write_start(char *buf, bool threadgroup)
 	if (threadgroup)
 		tsk = tsk->group_leader;
 
+	if (tsk->flags & PF_KTHREAD)
+		trace_android_rvh_cgroup_force_kthread_migration(tsk, dst_cgrp, &force_migration);
+
 	/*
 	 * kthreads may acquire PF_NO_SETAFFINITY during initialization.
 	 * If userland migrates such a kthread to a non-root cgroup, it can
 	 * become trapped in a cpuset, or RT kthread may be born in a
 	 * cgroup with no rt_runtime allocated.  Just say no.
 	 */
-	if (tsk->no_cgroup_migration || (tsk->flags & PF_NO_SETAFFINITY)) {
+	if (!force_migration && (tsk->no_cgroup_migration || (tsk->flags & PF_NO_SETAFFINITY))) {
 		tsk = ERR_PTR(-EINVAL);
 		goto out_unlock_threadgroup;
 	}
@@ -4804,7 +4812,7 @@ static ssize_t cgroup_procs_write(struct kernfs_open_file *of,
 	if (!dst_cgrp)
 		return -ENODEV;
 
-	task = cgroup_procs_write_start(buf, true);
+	task = cgroup_procs_write_start(buf, true, dst_cgrp);
 	ret = PTR_ERR_OR_ZERO(task);
 	if (ret)
 		goto out_unlock;
@@ -4855,7 +4863,7 @@ static ssize_t cgroup_threads_write(struct kernfs_open_file *of,
 	if (!dst_cgrp)
 		return -ENODEV;
 
-	task = cgroup_procs_write_start(buf, false);
+	task = cgroup_procs_write_start(buf, false, dst_cgrp);
 	ret = PTR_ERR_OR_ZERO(task);
 	if (ret)
 		goto out_unlock;
