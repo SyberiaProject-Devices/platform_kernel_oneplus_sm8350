@@ -6716,9 +6716,6 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 				most_spare_cap_cpu = i;
 			}
 
-			if (per_task_boost(cpu_rq(i)->curr) ==
-					TASK_BOOST_STRICT_MAX)
-				continue;
 			/*
 			 * Cumulative demand may already be accounting for the
 			 * task. If so, add just the boost-utilization to
@@ -6780,6 +6777,10 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 				best_idle_cpu = i;
 				continue;
 			}
+
+			if (per_task_boost(cpu_rq(i)->curr) ==
+					TASK_BOOST_STRICT_MAX)
+				continue;
 
 			/*
 			 * Pre-compute the maximum possible capacity we expect
