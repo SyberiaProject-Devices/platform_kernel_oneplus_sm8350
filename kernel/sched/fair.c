@@ -6739,13 +6739,6 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 			if (new_util > capacity_orig)
 				continue;
 
-			/*
-			 * Pre-compute the maximum possible capacity we expect
-			 * to have available on this CPU once the task is
-			 * enqueued here.
-			 */
-			spare_cap = capacity_orig - new_util;
-
 			if (idle_cpu(i))
 				idle_idx = idle_get_state_idx(cpu_rq(i));
 
@@ -6787,6 +6780,13 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 				best_idle_cpu = i;
 				continue;
 			}
+
+			/*
+			 * Pre-compute the maximum possible capacity we expect
+			 * to have available on this CPU once the task is
+			 * enqueued here.
+			 */
+			spare_cap = capacity_orig - new_util;
 
 			/*
 			 * Try to spread the rtg high prio tasks so that they
