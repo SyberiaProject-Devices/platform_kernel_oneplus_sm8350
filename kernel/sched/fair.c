@@ -3880,6 +3880,12 @@ static inline bool task_fits_capacity(struct task_struct *p,
 	return capacity * 1024 > uclamp_task_util(p) * margin;
 }
 
+static inline bool walt_uclamp_boosted(struct task_struct *p)
+{
+
+	return uclamp_eff_value(p, UCLAMP_MIN) > 0 && p->wts.unfilter;
+}
+
 static inline bool task_fits_max(struct task_struct *p, int cpu)
 {
 	unsigned long capacity = capacity_orig_of(cpu);
@@ -3892,7 +3898,7 @@ static inline bool task_fits_max(struct task_struct *p, int cpu)
 	if (is_min_capacity_cpu(cpu)) {
 		if (task_boost_policy(p) == SCHED_BOOST_ON_BIG ||
 				task_boost > 0 ||
-				uclamp_boosted(p) ||
+				walt_uclamp_boosted(p) ||
 				walt_should_kick_upmigrate(p, cpu))
 			return false;
 	} else { /* mid cap cpu */
@@ -7095,7 +7101,7 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 	u64 start_t = 0;
 	int delta = 0;
 	int task_boost = per_task_boost(p);
-	bool is_uclamp_boosted = uclamp_boosted(p);
+	bool is_uclamp_boosted = walt_uclamp_boosted(p);
 	bool boosted = is_uclamp_boosted || (task_boost > 0);
 	int start_cpu, order_index, end_index;
 
