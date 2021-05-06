@@ -7179,7 +7179,7 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 	if (!(idle_cpu(best_energy_cpu) &&
 	    idle_get_state_idx(cpu_rq(best_energy_cpu)) <= 0) &&
 	    (prev_energy != ULONG_MAX) && (best_energy_cpu != prev_cpu)  &&
-	    ((prev_energy - best_energy) <= prev_energy >> 4) &&
+	    ((prev_energy - best_energy) <= prev_energy >> 5) &&
 	    (capacity_orig_of(prev_cpu) <= capacity_orig_of(start_cpu)))
 		best_energy_cpu = prev_cpu;
 
