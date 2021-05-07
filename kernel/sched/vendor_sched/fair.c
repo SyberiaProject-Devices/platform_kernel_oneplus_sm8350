@@ -17,6 +17,7 @@
 #if IS_ENABLED(CONFIG_PIXEL_EM)
 struct em_perf_domain **vendor_sched_cpu_to_em_pd;
 EXPORT_SYMBOL_GPL(vendor_sched_cpu_to_em_pd);
+#endif
 
 extern unsigned int vendor_sched_uclamp_threshold;
 extern unsigned int vendor_sched_util_post_init_scale;

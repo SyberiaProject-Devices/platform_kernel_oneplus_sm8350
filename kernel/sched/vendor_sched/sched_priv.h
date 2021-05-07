@@ -131,4 +131,5 @@ static inline struct vendor_rq_struct *get_vendor_rq_struct(struct rq *rq)
 	return (struct vendor_rq_struct *)rq->android_vendor_data1;
 }
 
+int acpu_init(void);
 extern struct proc_dir_entry *vendor_sched;
