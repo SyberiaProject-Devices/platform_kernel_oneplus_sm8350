@@ -31,6 +31,11 @@ unsigned int sysctl_sched_coloc_busy_hyst_cpu[NR_CPUS] = {
 unsigned int sysctl_sched_coloc_busy_hyst_max_ms = 5000;
 unsigned int sysctl_sched_coloc_busy_hyst_cpu_busy_pct[NR_CPUS] = {
 		[0 ... NR_CPUS-1] = 10 };
+unsigned int sysctl_sched_util_busy_hyst_enable_cpus = 255;
+unsigned int sysctl_sched_util_busy_hyst_cpu[NR_CPUS] = {
+		[0 ... NR_CPUS-1] = 5000000 };
+unsigned int sysctl_sched_util_busy_hyst_cpu_util[NR_CPUS] = {
+		[0 ... NR_CPUS-1] = 15 };
 static DEFINE_PER_CPU(atomic64_t, busy_hyst_end_time) = ATOMIC64_INIT(0);
 
 static DEFINE_PER_CPU(u64, hyst_time);
