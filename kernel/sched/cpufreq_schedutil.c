@@ -267,6 +267,17 @@ static void sugov_deferred_update(struct sugov_policy *sg_policy, u64 time,
 }
 
 #define TARGET_LOAD 80
+static inline unsigned long walt_map_util_freq(unsigned long util,
+					unsigned long fmax, unsigned long cap,
+					int cpu)
+{
+	if (is_min_capacity_cpu(cpu) &&
+		util >= sysctl_sched_silver_thres &&
+		cpu_util_rt(cpu_rq(cpu)) < (cap >> 2))
+		return (fmax + (fmax >> 4)) * util / cap;
+    return (fmax + (fmax >> 2)) * util / cap;
+}
+
 /**
  * get_next_freq - Compute a new frequency for a given cpufreq policy.
  * @sg_policy: schedutil policy object to compute the new frequency for.
@@ -290,7 +301,8 @@ static void sugov_deferred_update(struct sugov_policy *sg_policy, u64 time,
  * cpufreq driver limitations.
  */
 static unsigned int get_next_freq(struct sugov_policy *sg_policy,
-				  unsigned long util, unsigned long max, u64 time)
+				  unsigned long util, unsigned long max, u64 time,
+				  struct sugov_cpu *sg_cpu)
 {
 	struct cpufreq_policy *policy = sg_policy->policy;
 	unsigned int freq = arch_scale_freq_invariant() ?
@@ -303,7 +315,7 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	if (next_freq)
 		freq = next_freq;
 	else
-		freq = map_util_freq(util, freq, max);
+		freq = walt_map_util_freq(util, freq, max, sg_cpu->cpu);
 
 	trace_sugov_next_freq(policy->cpu, util, max, freq);
 	if (sg_policy->cached_raw_freq && freq == sg_policy->cached_raw_freq &&
@@ -636,7 +648,12 @@ static inline unsigned long target_util(struct sugov_policy *sg_policy,
 	unsigned long util;
 
 	util = freq_to_util(sg_policy, freq);
-	util = mult_frac(util, TARGET_LOAD, 100);
+	if (sg_policy->max == min_max_possible_capacity &&
+		util >= sysctl_sched_silver_thres)
+		util = mult_frac(util, 94, 100);
+	else
+		util = mult_frac(util, TARGET_LOAD, 100);
+
 	return util;
 }
 
@@ -700,7 +717,7 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 	}
 
 	sugov_walt_adjust(sg_cpu, j_util, j_nl, &util, &max);
-	next_f = get_next_freq(sg_policy, util, max, time);
+	next_f = get_next_freq(sg_policy, util, max, time, sg_cpu);
 	/*
 	 * Do not reduce the frequency if the CPU has not been idle
 	 * recently, as the reduction is likely to be premature then.
@@ -779,7 +796,7 @@ static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu, u64 time)
 		sugov_walt_adjust(j_sg_cpu, j_util, j_nl, &util, &max);
 	}
 
-	return get_next_freq(sg_policy, util, max, time);
+	return get_next_freq(sg_policy, util, max, time, sg_cpu);
 }
 
 static void

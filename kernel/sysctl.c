@@ -412,6 +412,15 @@ static struct ctl_table kern_table[] = {
 		.extra2		= &four,
 	},
 	{
+		.procname	= "sched_silver_thres",
+		.data		= &sysctl_sched_silver_thres,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= SYSCTL_ZERO,
+		.extra2		= &one_thousand,
+	},
+	{
 		.procname	= "sched_group_upmigrate",
 		.data		= &sysctl_sched_group_upmigrate_pct,
 		.maxlen		= sizeof(unsigned int),

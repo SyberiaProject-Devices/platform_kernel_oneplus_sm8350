@@ -130,6 +130,8 @@ static __read_mostly unsigned int sched_io_is_busy = 1;
 __read_mostly unsigned int sysctl_sched_window_stats_policy =
 	WINDOW_STATS_MAX_RECENT_AVG;
 
+unsigned int __read_mostly sysctl_sched_silver_thres = 1000;
+
 unsigned int sysctl_sched_ravg_window_nr_ticks = (HZ / NR_WINDOWS_PER_SEC);
 
 unsigned int sysctl_sched_dynamic_ravg_window_enable = (HZ == 250);
@@ -3906,15 +3908,16 @@ preempt:
 /* Walk up scheduling entities hierarchy */
 #define for_each_sched_entity(se) \
 		for (; se; se = se->parent)
+
+/* runqueue on which this entity is (to be) queued */
+static inline struct cfs_rq *cfs_rq_of(struct sched_entity *se)
+{
+	return se->cfs_rq;
+}
+
 #else	/* !CONFIG_FAIR_GROUP_SCHED */
 #define for_each_sched_entity(se) \
 		for (; se; se = NULL)
-#endif
-
-#define wts_to_ts(wts) ({ \
-	    void *__mptr = (void *)(wts); \
-	    ((struct task_struct *)(__mptr - \
-		    offsetof(struct task_struct, wts))); })
 
 static inline struct task_struct *task_of(struct sched_entity *se)
 {
@@ -3928,6 +3931,13 @@ static inline struct cfs_rq *cfs_rq_of(struct sched_entity *se)
 
 	return &rq->cfs;
 }
+#endif
+
+#define wts_to_ts(wts) ({ \
+	    void *__mptr = (void *)(wts); \
+	    ((struct task_struct *)(__mptr - \
+		    offsetof(struct task_struct, wts))); })
+
 
 extern void set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se);
 static void walt_cfs_replace_next_task_fair(void *unused, struct rq *rq, struct task_struct **p,
