@@ -109,6 +109,9 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/task.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/sched.h>
+
 /*
  * Minimum number of threads to boot the kernel
  */
@@ -992,6 +995,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 #ifdef CONFIG_MEMCG
 	tsk->active_memcg = NULL;
 #endif
+	trace_android_vh_dup_task_struct(tsk, orig);
 	return tsk;
 
 free_stack:
