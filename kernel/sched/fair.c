@@ -3930,6 +3930,7 @@ struct find_best_target_env {
 	int end_index;
 	bool strict_max;
 	int skip_cpu;
+	u64 prs[8];
 };
 
 static inline bool prefer_spread_on_idle(int cpu, bool new_ilb)
@@ -6642,6 +6643,10 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 
 			trace_sched_cpu_util(i);
 
+			/* record the prss as we visit cpus in a cluster */
+			fbt_env->prs[i] = cpu_rq(i)->wrq.prev_runnable_sum +
+						 cpu_rq(i)->wrq.grp_time.prev_runnable_sum;
+
 			if (!cpu_active(i) || cpu_isolated(i))
 				continue;
 
@@ -6814,46 +6819,27 @@ out:
 			     fbt_env->skip_cpu, task_on_rq_queued(p));
 }
 
-static inline unsigned long
-cpu_util_next_walt(int cpu, struct task_struct *p, int dst_cpu)
+static inline u64
+cpu_util_next_walt_prs(int cpu, struct task_struct *p, int dst_cpu, bool prev_dst_same_cluster,
+											    u64 *prs)
+
 {
-	unsigned long util =
-		cpu_rq(cpu)->wrq.walt_stats.cumulative_runnable_avg_scaled;
-	bool queued = task_on_rq_queued(p);
+	long util = prs[cpu];
 
-	/*
-	 * When task is queued,
-	 * (a) The evaluating CPU (cpu) is task's current CPU. If the
-	 * task is migrating, discount the task contribution from the
-	 * evaluation cpu.
-	 * (b) The evaluating CPU (cpu) is task's current CPU. If the
-	 * task is NOT migrating, nothing to do. The contribution is
-	 * already present on the evaluation CPU.
-	 * (c) The evaluating CPU (cpu) is not task's current CPU. But
-	 * the task is migrating to the evaluating CPU. So add the
-	 * task contribution to it.
-	 * (d) The evaluating CPU (cpu) is neither the current CPU nor
-	 * the destination CPU. don't care.
-	 *
-	 * When task is NOT queued i.e waking. Task contribution is not
-	 * present on any CPU.
-	 *
-	 * (a) If the evaluating CPU is the destination CPU, add the task
-	 * contribution.
-	 * (b) The evaluation CPU is not the destination CPU, don't care.
-	 */
-	if (unlikely(queued)) {
-		if (task_cpu(p) == cpu) {
-			if (dst_cpu != cpu)
-				util = max_t(long, util - task_util(p), 0);
-		} else if (dst_cpu == cpu) {
-			util += task_util(p);
+	if (p->wts.prev_window) {
+		if (!prev_dst_same_cluster) {
+			/* intercluster migration of non rtg task - mimic fixups */
+			util -= p->wts.prev_window_cpu[cpu];
+		if (util < 0)
+			util = 0;
+		if (cpu == dst_cpu)
+			util += p->wts.prev_window;
 		}
-	} else if (dst_cpu == cpu) {
-		util += task_util(p);
+	} else {
+		if (cpu == dst_cpu)
+			util += p->wts.demand;
 	}
-
-	return min_t(unsigned long, util, capacity_orig_of(cpu));
+	return util;
 }
 
 #else
@@ -6904,16 +6890,22 @@ static unsigned long cpu_util_next(int cpu, struct task_struct *p, int dst_cpu)
  * task.
  */
 static long
-compute_energy(struct task_struct *p, int dst_cpu, struct perf_domain *pd)
+compute_energy(struct task_struct *p, int dst_cpu, struct perf_domain *pd, u64 *prs)
 {
 	struct cpumask *pd_mask = perf_domain_span(pd);
 #ifndef CONFIG_SCHED_WALT
 	unsigned long cpu_cap = arch_scale_cpu_capacity(cpumask_first(pd_mask));
 #endif
+	bool prev_dst_same_cluster = false;
 	unsigned long max_util = 0, sum_util = 0;
 	unsigned long energy = 0;
 	int cpu;
 	unsigned long cpu_util;
+
+#ifndef CONFIG_SCHED_WALT
+	if (same_cluster(task_cpu(p), dst_cpu))
+		prev_dst_same_cluster = true;
+#endif
 
 	/*
 	 * The capacity state of CPUs of the current rd can be driven by CPUs
@@ -6926,7 +6918,7 @@ compute_energy(struct task_struct *p, int dst_cpu, struct perf_domain *pd)
 	 */
 	for_each_cpu_and(cpu, pd_mask, cpu_online_mask) {
 #ifdef CONFIG_SCHED_WALT
-		cpu_util = cpu_util_next_walt(cpu, p, dst_cpu);
+		cpu_util = cpu_util_next_walt_prs(cpu, p, dst_cpu, prev_dst_same_cluster, prs);
 		sum_util += cpu_util;
 #else
 		unsigned long util_cfs = cpu_util_next(cpu, p, dst_cpu);
@@ -6954,6 +6946,10 @@ compute_energy(struct task_struct *p, int dst_cpu, struct perf_domain *pd)
 		max_util = max(max_util, cpu_util);
 	}
 
+#ifdef CONFIG_SCHED_WALT
+	max_util = scale_demand(max_util);
+	sum_util = scale_demand(sum_util);
+#endif
 	trace_android_vh_em_pd_energy(pd->em_pd, max_util, sum_util, &energy);
 	if (!energy)
 		energy = em_pd_energy(pd->em_pd, max_util, sum_util);
@@ -7141,7 +7137,7 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 
 	if (cpumask_test_cpu(prev_cpu, &p->cpus_mask) && !__cpu_overutilized(prev_cpu, delta))
 		prev_energy = best_energy =
-				compute_energy(p, prev_cpu, pd);
+				compute_energy(p, prev_cpu, pd, fbt_env.prs);
 	else
 		prev_energy = best_energy = ULONG_MAX;
 
@@ -7150,7 +7146,7 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 		if (cpu == prev_cpu)
 			continue;
 
-		cur_energy = compute_energy(p, cpu, pd);
+		cur_energy = compute_energy(p, cpu, pd, fbt_env.prs);
 		trace_sched_compute_energy(p, cpu, cur_energy,
 			prev_energy, best_energy, best_energy_cpu);
 
@@ -7239,7 +7235,7 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 		unsigned long base_energy_pd;
 		int max_spare_cap_cpu = -1;
 		/* Compute the 'base' energy of the pd, without @p */
-		base_energy_pd = compute_energy(p, -1, pd);
+		base_energy_pd = compute_energy(p, -1, pd, fbt_env.prs);
 		base_energy += base_energy_pd;
 		for_each_cpu_and(cpu, perf_domain_span(pd),
 				 sched_domain_span(sd)) {
@@ -7262,7 +7258,7 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 				continue;
 			/* Always use prev_cpu as a candidate. */
 			if (!latency_sensitive && cpu == prev_cpu) {
-				prev_delta = compute_energy(p, prev_cpu, pd);
+				prev_delta = compute_energy(p, prev_cpu, pd, fbt_env.prs);
 				prev_delta -= base_energy_pd;
 				best_delta = min(best_delta, prev_delta);
 			}
@@ -7298,7 +7294,7 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 		/* Evaluate the energy impact of using this CPU. */
 		if (!latency_sensitive && max_spare_cap_cpu >= 0 &&
 				max_spare_cap_cpu != prev_cpu) {
-			cur_delta = compute_energy(p, max_spare_cap_cpu, pd);
+			cur_delta = compute_energy(p, max_spare_cap_cpu, pd, fbt_env.prs);
 			cur_delta -= base_energy_pd;
 			if (cur_delta < best_delta) {
 				best_delta = cur_delta;

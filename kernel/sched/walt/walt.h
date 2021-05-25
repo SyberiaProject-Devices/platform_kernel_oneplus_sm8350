@@ -281,4 +281,7 @@ static inline u64 get_rtgb_active_time(void)
 
 #endif /* CONFIG_SCHED_WALT */
 
+extern __read_mostly unsigned int walt_scale_demand_divisor;
+#define scale_demand(d) ((d)/walt_scale_demand_divisor)
+
 #endif
