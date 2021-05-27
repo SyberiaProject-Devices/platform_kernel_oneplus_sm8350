@@ -4045,6 +4045,8 @@ static void walt_cfs_account_mvp_runtime(struct rq *rq, struct task_struct *curr
 	s64 delta;
 	unsigned int limit;
 
+	lockdep_assert_held(&rq->lock);
+
 	/* sum_exec_snapshot can be ahead. See below increment */
 	delta = curr->se.sum_exec_runtime - curr->wts.sum_exec_snapshot;
 	if (delta < 0)
@@ -4122,8 +4124,11 @@ void walt_cfs_dequeue_task(struct rq *rq, struct task_struct *p)
 
 void walt_cfs_tick(struct rq *rq)
 {
+
+	raw_spin_lock(&rq->lock);
+
 	if (list_empty(&rq->curr->wts.mvp_list))
-		return;
+		goto out;
 
 	walt_cfs_account_mvp_runtime(rq, rq->curr);
 	/*
@@ -4132,4 +4137,7 @@ void walt_cfs_tick(struct rq *rq)
 	 */
 	if ((rq->wrq.mvp_tasks.next != &rq->curr->wts.mvp_list) && rq->cfs.h_nr_running > 1)
 		resched_curr(rq);
+
+out:
+	raw_spin_unlock(&rq->lock);
 }
