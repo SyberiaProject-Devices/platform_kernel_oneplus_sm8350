@@ -2572,6 +2572,41 @@ static void walt_rest_init(struct work_struct *work)
 }
 static DECLARE_WORK(walt_work, walt_rest_init);
 
+int cpu_l2_sibling[NR_CPUS] = {[0 ... NR_CPUS-1] = -1};
+static void find_cache_siblings(void)
+{
+	int cpu, cpu2;
+	struct device_node *cpu_dev, *cpu_dev2, *cpu_l2_cache_node, *cpu_l2_cache_node2;
+
+	for_each_possible_cpu(cpu) {
+		cpu_dev = of_get_cpu_node(cpu, NULL);
+		if (!cpu_dev)
+			continue;
+
+		cpu_l2_cache_node = of_parse_phandle(cpu_dev, "next-level-cache", 0);
+		if (!cpu_l2_cache_node)
+			continue;
+
+		for_each_possible_cpu(cpu2) {
+			if (cpu == cpu2)
+				continue;
+
+			cpu_dev2 = of_get_cpu_node(cpu2, NULL);
+			if (!cpu_dev2)
+				continue;
+
+			cpu_l2_cache_node2 = of_parse_phandle(cpu_dev2, "next-level-cache", 0);
+			if (!cpu_l2_cache_node2)
+				continue;
+
+			if (cpu_l2_cache_node == cpu_l2_cache_node2) {
+				cpu_l2_sibling[cpu] = cpu2;
+				break;
+			}
+		}
+	}
+}
+
 void walt_update_cluster_topology(void)
 {
 	struct cpumask cpus = *cpu_possible_mask;
@@ -2648,6 +2683,9 @@ void walt_update_cluster_topology(void)
 		return;
 	}
 	smp_store_release(&cpu_array, tmp);
+
+	find_cache_siblings();
+
 	walt_clusters_parsed = true;
 	schedule_work(&walt_work);
 }

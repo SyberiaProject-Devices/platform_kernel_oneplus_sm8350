@@ -13,6 +13,9 @@
 
 #define EXITING_TASK_MARKER	0xdeaddead
 
+
+extern int cpu_l2_sibling[NR_CPUS];
+
 extern unsigned int walt_rotation_enabled;
 extern int __read_mostly num_sched_clusters;
 extern cpumask_t __read_mostly **cpu_array;
