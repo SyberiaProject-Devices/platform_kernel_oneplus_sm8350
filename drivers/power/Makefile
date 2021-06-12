@@ -5,3 +5,5 @@ obj-$(CONFIG_POWER_SUPPLY)	+= supply/
 #ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 obj-$(CONFIG_OPLUS_SM8350_CHARGER)	+= oplus_chg/
 #endif
+
+obj-$(CONFIG_PIXEL_EM)	+= pixel_em/

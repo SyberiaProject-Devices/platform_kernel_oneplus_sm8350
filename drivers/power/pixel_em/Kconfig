@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Google SoC drivers
+#
+
+menu "Google EM"
+
+config PIXEL_EM
+	tristate "Enable Pixel Energy Model driver"
+	depends on VENDOR_SCHED
+	default n
+	help
+	Support Pixel Energy Model.
+
+endmenu
