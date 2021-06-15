@@ -7140,18 +7140,15 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 
 	/* Bail out if no candidate was found. */
 	weight = cpumask_weight(candidates);
-	if (!weight) {
-		rcu_read_unlock();
-	    goto done;
-	}
+	if (!weight)
+		goto unlock;
 
 	/* If there is only one sensible candidate, select it now. */
 	max_cap_cpu = cpumask_first(candidates);
 	if (weight == 1) {
 		if (available_idle_cpu(max_cap_cpu) || max_cap_cpu == prev_cpu) {
 			best_energy_cpu = max_cap_cpu;
-			rcu_read_unlock();
-			goto done;
+			goto unlock;
 		}
 	}
 
@@ -7162,8 +7159,7 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 
 	if (!energy_eval_needed) {
 		best_energy_cpu = max_cap_cpu;
-		rcu_read_unlock();
-		goto done;
+		goto unlock;
 	}
 
 	if (p->state == TASK_WAKING)
@@ -7196,8 +7192,6 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 		}
 	}
 
-	rcu_read_unlock();
-
 	/*
 	 * Pick the prev CPU, if best energy CPU can't saves at least 6% of
 	 * the energy used by prev_cpu.
@@ -7208,6 +7202,9 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 	    ((prev_energy - best_energy) <= prev_energy >> 5) &&
 	    (capacity_orig_of(prev_cpu) <= capacity_orig_of(start_cpu)))
 		best_energy_cpu = prev_cpu;
+
+unlock:
+	rcu_read_unlock();
 
 done:
 	trace_sched_task_util(p, cpumask_bits(candidates)[0], best_energy_cpu,
