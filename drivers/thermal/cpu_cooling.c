@@ -24,6 +24,11 @@
 
 #include <trace/events/thermal.h>
 
+#if IS_ENABLED(CONFIG_PIXEL_EM)
+struct em_perf_domain **pixel_cpu_cooling_cpu_to_em_pd;
+EXPORT_SYMBOL_GPL(pixel_cpu_cooling_cpu_to_em_pd);
+#endif
+
 /*
  * Cooling state <-> CPUFreq frequency
  *
@@ -109,6 +114,22 @@ static u32 cpu_freq_to_power(struct cpufreq_cooling_device *cpufreq_cdev,
 {
 	int i;
 
+#if IS_ENABLED(CONFIG_PIXEL_EM)
+	{
+		struct em_perf_domain **cpu_to_em_pd = READ_ONCE(pixel_cpu_cooling_cpu_to_em_pd);
+		if (cpu_to_em_pd) {
+			int first_cpu = cpumask_first(cpufreq_cdev->policy->related_cpus);
+			struct em_perf_domain *pd = cpu_to_em_pd[first_cpu];
+
+			for (i = 1; i < pd->nr_perf_states; i++)
+				if (freq > pd->table[i].frequency)
+					break;
+
+			return pd->table[i - 1].power;
+		}
+	}
+#endif
+
 	for (i = cpufreq_cdev->max_level - 1; i >= 0; i--) {
 		if (freq > cpufreq_cdev->em->table[i].frequency)
 			break;
@@ -121,6 +142,22 @@ static u32 cpu_power_to_freq(struct cpufreq_cooling_device *cpufreq_cdev,
 			     u32 power)
 {
 	int i;
+
+#if IS_ENABLED(CONFIG_PIXEL_EM)
+	{
+		struct em_perf_domain **cpu_to_em_pd = READ_ONCE(pixel_cpu_cooling_cpu_to_em_pd);
+		if (cpu_to_em_pd) {
+			int first_cpu = cpumask_first(cpufreq_cdev->policy->related_cpus);
+			struct em_perf_domain *pd = cpu_to_em_pd[first_cpu];
+
+			for (i = 1; i < pd->nr_perf_states; i++)
+				if (power > pd->table[i].power)
+				break;
+
+			return pd->table[i - 1].frequency;
+		}
+	}
+#endif
 
 	for (i = cpufreq_cdev->max_level; i > 0; i--) {
 		if (power >= cpufreq_cdev->em->table[i].power)
