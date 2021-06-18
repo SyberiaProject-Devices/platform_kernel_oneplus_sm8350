@@ -199,7 +199,7 @@ void check_for_migration(struct rq *rq, struct task_struct *p)
 		rcu_read_lock();
 		new_cpu = find_energy_efficient_cpu(p, prev_cpu, 0, 1);
 		rcu_read_unlock();
-		if ((new_cpu >= 0) && (available_idle_cpu(new_cpu)) &&
+		if ((new_cpu >= 0) && (idle_cpu(new_cpu)) &&
 		    (capacity_orig_of(new_cpu) > capacity_orig_of(prev_cpu))) {
 			active_balance = kick_active_balance(rq, p, new_cpu);
 			if (active_balance) {

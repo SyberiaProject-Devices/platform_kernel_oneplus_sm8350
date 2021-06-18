@@ -6843,7 +6843,7 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 	if (unlikely(cpumask_empty(cpus))) {
 		if (most_spare_cap_cpu != -1)
 			cpumask_set_cpu(most_spare_cap_cpu, cpus);
-		else if (cpu_isolated(prev_cpu) && active_candidate != -1)
+		else if (cpu_isolated(prev_cpu) && unisolated_candidate != -1)
 			cpumask_set_cpu(unisolated_candidate, cpus);
 	}
 
@@ -6851,6 +6851,48 @@ out:
 	trace_sched_find_best_target(p, min_util, start_cpu, cpumask_bits(cpus)[0],
 			     most_spare_cap_cpu, order_index, end_index,
 			     fbt_env->skip_cpu, task_on_rq_queued(p));
+}
+
+static inline unsigned long
+cpu_util_next_walt(int cpu, struct task_struct *p, int dst_cpu)
+{
+	unsigned long util =
+		cpu_rq(cpu)->wrq.walt_stats.cumulative_runnable_avg_scaled;
+	bool queued = task_on_rq_queued(p);
+
+	/*
+	 * When task is queued,
+	 * (a) The evaluating CPU (cpu) is task's current CPU. If the
+	 * task is migrating, discount the task contribution from the
+	 * evaluation cpu.
+	 * (b) The evaluating CPU (cpu) is task's current CPU. If the
+	 * task is NOT migrating, nothing to do. The contribution is
+	 * already present on the evaluation CPU.
+	 * (c) The evaluating CPU (cpu) is not task's current CPU. But
+	 * the task is migrating to the evaluating CPU. So add the
+	 * task contribution to it.
+	 * (d) The evaluating CPU (cpu) is neither the current CPU nor
+	 * the destination CPU. don't care.
+	 *
+	 * When task is NOT queued i.e waking. Task contribution is not
+	 * present on any CPU.
+	 *
+	 * (a) If the evaluating CPU is the destination CPU, add the task
+	 * contribution.
+	 * (b) The evaluation CPU is not the destination CPU, don't care.
+	 */
+	if (unlikely(queued)) {
+		if (task_cpu(p) == cpu) {
+			if (dst_cpu != cpu)
+				util = max_t(long, util - task_util(p), 0);
+		} else if (dst_cpu == cpu) {
+			util += task_util(p);
+		}
+	} else if (dst_cpu == cpu) {
+		util += task_util(p);
+	}
+
+	return min_t(unsigned long, util, capacity_orig_of(cpu));
 }
 
 static inline u64
@@ -6952,8 +6994,8 @@ compute_energy(struct task_struct *p, int dst_cpu, struct perf_domain *pd, u64 *
 	 */
 	for_each_cpu_and(cpu, pd_mask, cpu_online_mask) {
 #ifdef CONFIG_SCHED_WALT
+		sum_util += cpu_util_next_walt(cpu, p, dst_cpu);
 		cpu_util = cpu_util_next_walt_prs(cpu, p, dst_cpu, prev_dst_same_cluster, prs);
-		sum_util += cpu_util;
 #else
 		unsigned long util_cfs = cpu_util_next(cpu, p, dst_cpu);
 		struct task_struct *tsk = cpu == dst_cpu ? p : NULL;
@@ -6982,7 +7024,6 @@ compute_energy(struct task_struct *p, int dst_cpu, struct perf_domain *pd, u64 *
 
 #ifdef CONFIG_SCHED_WALT
 	max_util = scale_demand(max_util);
-	sum_util = scale_demand(sum_util);
 #endif
 	trace_android_vh_em_pd_energy(pd->em_pd, max_util, sum_util, &energy);
 	if (!energy)
@@ -7151,13 +7192,13 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 	/* If there is only one sensible candidate, select it now. */
 	first_cpu = cpumask_first(candidates);
 	if (weight == 1) {
-		if (available_idle_cpu(first_cpu) || first_cpu == prev_cpu) {
+		if (idle_cpu(first_cpu) || first_cpu == prev_cpu) {
 			best_energy_cpu = first_cpu;
 			goto unlock;
 		}
 	}
 
-	if (need_idle && available_idle_cpu(first_cpu)) {
+	if (need_idle && idle_cpu(first_cpu)) {
 		best_energy_cpu = first_cpu;
 		goto unlock;
 	}
