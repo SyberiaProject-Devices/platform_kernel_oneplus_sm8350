@@ -1538,6 +1538,20 @@ task_may_not_preempt(struct task_struct *task, int cpu)
 		 task_thread_info(task)->preempt_count & SOFTIRQ_MASK));
 }
 
+#ifdef CONFIG_SCHED_WALT
+/*
+ * walt specific should_honor_rt_sync (see rt.c).  this will honor
+ * the sync flag regardless of whether the current waker is cfs or rt
+ */
+static inline bool walt_should_honor_rt_sync(struct rq *rq, struct task_struct *p,
+					 bool sync)
+{
+	return sync &&
+		p->prio <= rq->rt.highest_prio.next &&
+		rq->rt.rt_nr_running <= 2;
+}
+#endif
+
 static int
 #ifdef CONFIG_SCHED_WALT
 select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags,
@@ -1551,6 +1565,11 @@ select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags)
 	bool may_not_preempt;
 	bool test;
 	int target_cpu = -1;
+#ifdef CONFIG_SCHED_WALT
+	struct rq *this_cpu_rq;
+	bool sync = !!(flags & WF_SYNC);
+	int this_cpu;
+#endif
 
 	trace_android_rvh_select_task_rq_rt(p, cpu, sd_flag,
 					flags, &target_cpu);
@@ -1560,6 +1579,20 @@ select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags)
 	/* For anything but wake ups, just return the task_cpu */
 	if (sd_flag != SD_BALANCE_WAKE && sd_flag != SD_BALANCE_FORK)
 		goto out;
+
+#ifdef CONFIG_SCHED_WALT
+	this_cpu = raw_smp_processor_id();
+	this_cpu_rq = cpu_rq(this_cpu);
+
+	/*
+	 * Respect the sync flag as long as the task can run on this CPU.
+	 */
+	if (sysctl_sched_sync_hint_enable && !cpu_isolated(this_cpu) &&
+			cpumask_test_cpu(this_cpu, p->cpus_ptr) &&
+			walt_should_honor_rt_sync(this_cpu_rq, p, sync)) {
+		return this_cpu;
+	}
+#endif
 
 	rq = cpu_rq(cpu);
 
