@@ -7083,7 +7083,7 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 	int task_boost = per_task_boost(p);
 	bool boosted = walt_uclamp_boosted(p);
 	int start_cpu, order_index, end_index;
-	int max_cap_cpu = -1;
+	int first_cpu;
 	bool energy_eval_needed = true;
 
 	if (walt_is_many_wakeup(sibling_count_hint) && prev_cpu != cpu &&
@@ -7144,25 +7144,26 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 		goto unlock;
 
 	/* If there is only one sensible candidate, select it now. */
-	max_cap_cpu = cpumask_first(candidates);
+	first_cpu = cpumask_first(candidates);
 	if (weight == 1) {
-		if (available_idle_cpu(max_cap_cpu) || max_cap_cpu == prev_cpu) {
-			best_energy_cpu = max_cap_cpu;
+		if (available_idle_cpu(first_cpu) || first_cpu == prev_cpu) {
+			best_energy_cpu = first_cpu;
 			goto unlock;
 		}
 	}
 
-	if (need_idle && available_idle_cpu(max_cap_cpu)) {
-		best_energy_cpu = max_cap_cpu;
+	if (need_idle && available_idle_cpu(first_cpu)) {
+		best_energy_cpu = first_cpu;
 		goto unlock;
 	}
 
-	for_each_cpu(cpu, candidates) {
-		if (capacity_orig_of(max_cap_cpu) < capacity_orig_of(cpu))
-			max_cap_cpu = cpu;
-	}
-
 	if (!energy_eval_needed) {
+		int max_cap_cpu = first_cpu;
+
+		for_each_cpu(cpu, candidates) {
+			if (capacity_orig_of(max_cap_cpu) < capacity_orig_of(cpu))
+				max_cap_cpu = cpu;
+		}
 		best_energy_cpu = max_cap_cpu;
 		goto unlock;
 	}
