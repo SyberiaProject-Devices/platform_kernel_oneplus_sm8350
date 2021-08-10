@@ -293,6 +293,7 @@ extern __read_mostly unsigned int walt_scale_demand_divisor;
 
 #define WALT_RTG_MVP		0
 #define WALT_BINDER_MVP		1
+#define WALT_TASK_BOOST_MVP	2
 
 #define WALT_NOT_MVP		-1
 
