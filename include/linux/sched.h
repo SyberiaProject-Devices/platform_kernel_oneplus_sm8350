@@ -451,7 +451,7 @@ struct sched_statistics {
 	u64				core_forceidle_sum;
 #endif
 #endif /* CONFIG_SCHEDSTATS */
-};
+} ____cacheline_aligned;
 
 struct sched_entity {
 	/* For load-balancing: */
@@ -466,8 +466,6 @@ struct sched_entity {
 	u64				prev_sum_exec_runtime;
 
 	u64				nr_migrations;
-
-	struct sched_statistics		statistics;
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	int				depth;
@@ -735,6 +733,7 @@ struct task_struct {
 #ifdef CONFIG_HOTPLUG_CPU
 	struct list_head		percpu_kthread_node;
 #endif
+	struct sched_statistics         stats;
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 	/* List of struct preempt_notifier: */
