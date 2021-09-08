@@ -815,6 +815,8 @@ config ARCH_HAS_PTE_SPECIAL
 config ARCH_HAS_HUGEPD
 	bool
 
+source "mm/damon/Kconfig"
+
 endmenu
 
 config PROCESS_RECLAIM
