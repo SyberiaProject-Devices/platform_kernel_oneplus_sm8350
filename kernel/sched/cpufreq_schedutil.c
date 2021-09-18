@@ -164,14 +164,18 @@ static inline bool conservative_pl(void)
 }
 
 static bool sugov_update_next_freq(struct sugov_policy *sg_policy, u64 time,
-				   unsigned int next_freq)
+				   unsigned int next_freq,
+				   unsigned int raw_freq)
 {
 	if (sg_policy->next_freq == next_freq)
 		return false;
 
-	if (sugov_up_down_rate_limit(sg_policy, time, next_freq))
+	if (sugov_up_down_rate_limit(sg_policy, time, next_freq)) {
+		sg_policy->cached_raw_freq = 0;
 		return false;
+	}
 
+	sg_policy->cached_raw_freq = raw_freq;
 	sg_policy->next_freq = next_freq;
 	sg_policy->last_freq_update_time = time;
 
@@ -240,9 +244,6 @@ static void sugov_fast_switch(struct sugov_policy *sg_policy, u64 time,
 	struct cpufreq_policy *policy = sg_policy->policy;
 	int cpu;
 
-	if (!sugov_update_next_freq(sg_policy, time, next_freq))
-		return;
-
 	sugov_track_cycles(sg_policy, sg_policy->policy->cur, time);
 	next_freq = cpufreq_driver_fast_switch(policy, next_freq);
 	if (!next_freq)
@@ -259,9 +260,6 @@ static void sugov_fast_switch(struct sugov_policy *sg_policy, u64 time,
 static void sugov_deferred_update(struct sugov_policy *sg_policy, u64 time,
 				  unsigned int next_freq)
 {
-	if (!sugov_update_next_freq(sg_policy, time, next_freq))
-		return;
-
 	if (use_pelt())
 		sg_policy->work_in_progress = true;
 	walt_irq_work_queue(&sg_policy->irq_work);
@@ -291,11 +289,13 @@ static void sugov_deferred_update(struct sugov_policy *sg_policy, u64 time,
  * cpufreq driver limitations.
  */
 static unsigned int get_next_freq(struct sugov_policy *sg_policy,
-				  unsigned long util, unsigned long max)
+				  unsigned long util, unsigned long max, u64 time)
 {
 	struct cpufreq_policy *policy = sg_policy->policy;
 	unsigned int freq = arch_scale_freq_invariant() ?
 				policy->cpuinfo.max_freq : policy->cur;
+	unsigned int final_freq;
+
 	unsigned long next_freq = 0;
 
 	trace_android_vh_map_util_freq(util, freq, max, &next_freq);
@@ -305,12 +305,18 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 		freq = map_util_freq(util, freq, max);
 
 	trace_sugov_next_freq(policy->cpu, util, max, freq);
-	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
+	if (sg_policy->cached_raw_freq && freq == sg_policy->cached_raw_freq &&
+		!sg_policy->need_freq_update)
 		return sg_policy->next_freq;
 
 	sg_policy->need_freq_update = false;
-	sg_policy->cached_raw_freq = freq;
-	return cpufreq_driver_resolve_freq(policy, freq);
+
+	final_freq = cpufreq_driver_resolve_freq(policy, freq);
+
+	if (!sugov_update_next_freq(sg_policy, time, final_freq, freq))
+		return 0;
+
+	return final_freq;
 }
 
 /*
@@ -683,7 +689,7 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 				sg_cpu->walt_load.rtgb_active, flags);
 
 	sugov_walt_adjust(sg_cpu, &util, &max);
-	next_f = get_next_freq(sg_policy, util, max);
+	next_f = get_next_freq(sg_policy, util, max, time);
 	/*
 	 * Do not reduce the frequency if the CPU has not been idle
 	 * recently, as the reduction is likely to be premature then.
@@ -755,7 +761,7 @@ static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu, u64 time)
 		sugov_walt_adjust(j_sg_cpu, &util, &max);
 	}
 
-	return get_next_freq(sg_policy, util, max);
+	return get_next_freq(sg_policy, util, max, time);
 }
 
 static void
@@ -800,12 +806,16 @@ sugov_update_shared(struct update_util_data *hook, u64 time, unsigned int flags)
 	    !(flags & SCHED_CPUFREQ_CONTINUE)) {
 		next_f = sugov_next_freq_shared(sg_cpu, time);
 
+	    if (!next_f)
+		    goto out;
+
 		if (sg_policy->policy->fast_switch_enabled)
 			sugov_fast_switch(sg_policy, time, next_f);
 		else
 			sugov_deferred_update(sg_policy, time, next_f);
 	}
 
+out:
 	raw_spin_unlock(&sg_policy->update_lock);
 }
 
@@ -1366,7 +1376,7 @@ static void sugov_limits(struct cpufreq_policy *policy)
 {
 	struct sugov_policy *sg_policy = policy->governor_data;
 	unsigned long flags, now;
-	unsigned int freq;
+	unsigned int freq, final_freq;
 
 	if (!policy->fast_switch_enabled) {
 		mutex_lock(&sg_policy->work_lock);
@@ -1385,9 +1395,13 @@ static void sugov_limits(struct cpufreq_policy *policy)
 		 * cpufreq_driver_resolve_freq() has a clamp, so we do not need
 		 * to do any sort of additional validation here.
 		 */
-		freq = cpufreq_driver_resolve_freq(policy, freq);
-		sg_policy->cached_raw_freq = freq;
-		sugov_fast_switch(sg_policy, now, freq);
+		final_freq = cpufreq_driver_resolve_freq(policy, freq);
+
+		if (sugov_update_next_freq(sg_policy, now, final_freq,
+			final_freq)) {
+			sugov_fast_switch(sg_policy, now, final_freq);
+		}
+
 		raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
 	}
 
