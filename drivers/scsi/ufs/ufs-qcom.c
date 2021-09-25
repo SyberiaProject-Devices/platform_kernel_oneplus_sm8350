@@ -2194,8 +2194,6 @@ static int ufs_qcom_setup_clocks(struct ufs_hba *hba, bool on,
 			atomic_set(&host->clks_on, on);
 		break;
 	}
-	if (!(!!atomic_read(&host->clks_on)))
-		cancel_dwork_unvote_cpufreq(hba);
 
 	return err;
 }
