@@ -6655,7 +6655,7 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 					struct task_struct *p,
 					struct find_best_target_env *fbt_env)
 {
-	unsigned long min_util = uclamp_task_util(p);
+	unsigned long min_task_util = uclamp_task_util(p);
 	long target_max_spare_cap = 0;
 	unsigned long best_idle_cuml_util = ULONG_MAX;
 	/* Initialise with deepest possible cstate (INT_MAX) */
@@ -6716,7 +6716,7 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 				&cpu_array[order_index][cluster]);
 		for_each_cpu(i, &visit_cpus) {
 			unsigned long capacity_orig = capacity_orig_of(i);
-			unsigned long wake_util, new_util, new_util_cuml;
+			unsigned long wake_cpu_util, new_cpu_util, new_util_cuml;
 			long spare_cap;
 			int idle_idx = INT_MAX;
 
@@ -6751,9 +6751,8 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 			 * so prev_cpu will receive a negative bias due to the double
 			 * accounting. However, the blocked utilization may be zero.
 			 */
-			wake_util = cpu_util_without(i, p);
-			new_util = wake_util + uclamp_task_util(p);
-			spare_wake_cap = capacity_orig - wake_util;
+			wake_cpu_util = cpu_util_without(i, p);
+			spare_wake_cap = capacity_orig - wake_cpu_util;
 
 			if (spare_wake_cap > most_spare_wake_cap) {
 				most_spare_wake_cap = spare_wake_cap;
@@ -6786,8 +6785,8 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 			 * The target CPU can be already at a capacity level higher
 			 * than the one required to boost the task.
 			 */
-			new_util = max(min_util, new_util);
-			if (new_util > capacity_orig)
+			new_cpu_util = wake_cpu_util + min_task_util;
+			if (new_cpu_util > capacity_orig)
 				continue;
 
 			if (idle_cpu(i))
@@ -6847,7 +6846,7 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 			 * to have available on this CPU once the task is
 			 * enqueued here.
 			 */
-			spare_cap = capacity_orig - new_util;
+			spare_cap = capacity_orig - new_cpu_util;
 
 			/*
 			 * Try to spread the rtg high prio tasks so that they
@@ -6909,7 +6908,7 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 	}
 
 out:
-	trace_sched_find_best_target(p, min_util, start_cpu, cpumask_bits(cpus)[0],
+	trace_sched_find_best_target(p, min_task_util, start_cpu, cpumask_bits(cpus)[0],
 			     most_spare_cap_cpu, order_index, end_index,
 			     fbt_env->skip_cpu, task_on_rq_queued(p), least_nr_cpu,
 			     cpu_rq_runnable_cnt);
