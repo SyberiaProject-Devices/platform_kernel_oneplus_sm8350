@@ -13,7 +13,6 @@
 
 #define EXITING_TASK_MARKER	0xdeaddead
 
-
 extern int cpu_l2_sibling[NR_CPUS];
 
 extern unsigned int walt_rotation_enabled;
@@ -289,4 +288,17 @@ static inline u64 get_rtgb_active_time(void)
 extern __read_mostly unsigned int walt_scale_demand_divisor;
 #define scale_demand(d) ((d)/walt_scale_demand_divisor)
 
-#endif
+#define WALT_MVP_SLICE		3000000U
+#define WALT_MVP_LIMIT		(4 * WALT_MVP_SLICE)
+
+#define WALT_RTG_MVP		0
+#define WALT_BINDER_MVP		1
+
+#define WALT_NOT_MVP		-1
+
+#define is_mvp(wts) (p->wts.mvp_prio != WALT_NOT_MVP)
+void walt_cfs_enqueue_task(struct rq *rq, struct task_struct *p);
+void walt_cfs_dequeue_task(struct rq *rq, struct task_struct *p);
+void walt_cfs_tick(struct rq *rq);
+
+#endif /* _WALT_H */

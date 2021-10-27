@@ -184,6 +184,7 @@ struct walt_rq {
 	bool			high_irqload;
 	u64			last_cc_update;
 	u64			cycles;
+	struct list_head	mvp_tasks;
 };
 
 struct walt_sched_cluster {

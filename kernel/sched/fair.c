@@ -5507,6 +5507,7 @@ enqueue_throttle:
 		p->wts.misfit = !task_fits_max(p, rq->cpu);
 #endif
 		inc_rq_walt_stats(rq, p);
+		walt_cfs_enqueue_task(rq, p);
 		/*
 		 * Since new tasks are assigned an initial util_avg equal to
 		 * half of the spare capacity of their CPU, tiny tasks have the
@@ -5605,6 +5606,7 @@ dequeue_throttle:
 	if (!se) {
 		sub_nr_running(rq, 1);
 		dec_rq_walt_stats(rq, p);
+		walt_cfs_dequeue_task(rq, p);
 	}
 
 	util_est_dequeue(&rq->cfs, p, task_sleep);

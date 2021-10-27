@@ -3893,6 +3893,9 @@ void scheduler_tick(void)
 	rq_unlock(rq, &rf);
 #endif
 
+	if (curr->prio >= MAX_RT_PRIO && !is_idle_task(curr))
+		walt_cfs_tick(rq);
+
 	trace_android_vh_scheduler_tick(rq);
 }
 

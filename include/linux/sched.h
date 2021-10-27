@@ -636,6 +636,10 @@ struct walt_task_struct {
 	cpumask_t			cpus_requested;
 	bool				iowaited;
 	int				cidx;
+	struct list_head		mvp_list;
+	u64				sum_exec_snapshot;
+	u64				total_exec;
+	int				mvp_prio;
 };
 
 #else

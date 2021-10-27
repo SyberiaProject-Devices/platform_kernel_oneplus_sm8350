@@ -2217,6 +2217,11 @@ void init_new_task_load(struct task_struct *p)
 	p->wts.rtg_high_prio = false;
 	p->wts.unfilter = sysctl_sched_task_unfilter_period;
 	p->wts.cidx = 0;
+
+	INIT_LIST_HEAD(&p->wts.mvp_list);
+	p->wts.sum_exec_snapshot = 0;
+	p->wts.total_exec = 0;
+	p->wts.mvp_prio = WALT_NOT_MVP;
 }
 
 /*
@@ -3908,6 +3913,8 @@ void walt_sched_init_rq(struct rq *rq)
 	}
 	rq->wrq.cum_window_demand_scaled = 0;
 	rq->wrq.notif_pending = false;
+
+	INIT_LIST_HEAD(&rq->wrq.mvp_tasks);
 }
 
 int walt_proc_user_hint_handler(struct ctl_table *table,
@@ -3966,4 +3973,161 @@ int sched_ravg_window_handler(struct ctl_table *table,
 unlock:
 	mutex_unlock(&mutex);
 	return ret;
+}
+
+/*
+ * Higher prio mvp can preempt lower prio mvp.
+ *
+ * However, the lower prio MVP slice will be more since we expect them to
+ * be the work horses. For example, binders will have higher prio MVP and
+ * they can preempt long running rtg prio tasks but binders loose their
+ * powers with in 3 msec where as rtg prio tasks can run more than that.
+ */
+static inline int walt_get_mvp_task_prio(struct task_struct *p)
+{
+	if ((per_task_boost(p) == TASK_BOOST_STRICT_MAX) ||
+		task_rtg_high_prio(p) ||
+		walt_procfs_low_latency_task(p))
+		return WALT_RTG_MVP;
+
+	if (walt_binder_low_latency_task(p))
+		return WALT_BINDER_MVP;
+
+	return WALT_NOT_MVP;
+}
+
+static inline unsigned int walt_cfs_mvp_task_limit(struct task_struct *p)
+{
+	/* Binder MVP tasks are high prio but have only single slice */
+	if (p->wts.mvp_prio == WALT_BINDER_MVP)
+		return WALT_MVP_SLICE;
+
+	return WALT_MVP_LIMIT;
+}
+
+static void walt_cfs_insert_mvp_task(struct rq *rq, struct task_struct *p,
+				     bool at_front)
+{
+	struct list_head *pos;
+
+	list_for_each(pos, &rq->wrq.mvp_tasks) {
+		struct walt_task_struct *tmp_wts = container_of(pos, struct walt_task_struct,
+								mvp_list);
+
+		if (at_front) {
+			if (p->wts.mvp_prio >= tmp_wts->mvp_prio)
+				break;
+		} else {
+			if (p->wts.mvp_prio > tmp_wts->mvp_prio)
+				break;
+		}
+	}
+
+	list_add(&p->wts.mvp_list, pos->prev);
+}
+
+static void walt_cfs_deactivate_mvp_task(struct task_struct *p)
+{
+	list_del_init(&p->wts.mvp_list);
+	p->wts.mvp_prio = WALT_NOT_MVP;
+
+	/*
+	 * Reset the exec time during sleep so that it starts
+	 * from scratch upon next wakeup. total_exec should
+	 * be preserved when task is enq/deq while it is on
+	 * runqueue.
+	 */
+	if (p->state != TASK_RUNNING)
+		p->wts.total_exec = 0;
+}
+
+/*
+ * MVP task runtime update happens here. Three possibilities:
+ *
+ * de-activated: The MVP consumed its runtime. Non MVP can preempt.
+ * slice expired: MVP slice is expired and other MVP can preempt.
+ * slice not expired: This MVP task can continue to run.
+ */
+static void walt_cfs_account_mvp_runtime(struct rq *rq, struct task_struct *curr)
+{
+	s64 delta;
+	unsigned int limit;
+
+	/* sum_exec_snapshot can be ahead. See below increment */
+	delta = curr->se.sum_exec_runtime - curr->wts.sum_exec_snapshot;
+	if (delta < 0)
+		delta = 0;
+	else
+		delta += rq_clock_task(rq) - curr->se.exec_start;
+
+	/* slice is not expired */
+	if (delta < WALT_MVP_SLICE)
+		return;
+
+	/*
+	 * slice is expired, check if we have to deactivate the
+	 * MVP task, otherwise requeue the task in the list so
+	 * that other MVP tasks gets a chance.
+	 */
+	curr->wts.sum_exec_snapshot += delta;
+	curr->wts.total_exec += delta;
+
+	limit = walt_cfs_mvp_task_limit(curr);
+	if (curr->wts.total_exec > limit) {
+		walt_cfs_deactivate_mvp_task(curr);
+		//trace_walt_cfs_deactivate_mvp_task(curr, wts, limit);
+		return;
+	}
+
+	/* slice expired. re-queue the task */
+	list_del(&curr->wts.mvp_list);
+	walt_cfs_insert_mvp_task(rq, curr, false);
+}
+
+void walt_cfs_enqueue_task(struct rq *rq, struct task_struct *p)
+{
+	int mvp_prio = walt_get_mvp_task_prio(p);
+
+	if (mvp_prio == WALT_NOT_MVP)
+		return;
+
+	/*
+	 * This can happen during migration or enq/deq for prio/class change.
+	 * it was once MVP but got demoted, it will not be MVP until
+	 * it goes to sleep again.
+	 */
+	if (p->wts.total_exec > walt_cfs_mvp_task_limit(p))
+		return;
+
+	p->wts.mvp_prio = mvp_prio;
+	walt_cfs_insert_mvp_task(rq, p, task_running(rq, p));
+
+	/*
+	 * We inserted the task at the appropriate position. Take the
+	 * task runtime snapshot. From now onwards we use this point as a
+	 * baseline to enforce the slice and demotion.
+	 */
+	if (!p->wts.total_exec) /* queue after sleep */
+		p->wts.sum_exec_snapshot = p->se.sum_exec_runtime;
+
+}
+
+void walt_cfs_dequeue_task(struct rq *rq, struct task_struct *p)
+{
+	if (!list_empty(&p->wts.mvp_list))
+		walt_cfs_deactivate_mvp_task(p);
+}
+
+void walt_cfs_tick(struct rq *rq)
+{
+	if (list_empty(&rq->curr->wts.mvp_list))
+		return;
+
+	walt_cfs_account_mvp_runtime(rq, rq->curr);
+	/*
+	 * If the current is not MVP means, we have to re-schedule to
+	 * see if we can run any other task including MVP tasks.
+	 */
+	if ((rq->wrq.mvp_tasks.next != &rq->curr->wts.mvp_list) && rq->cfs.h_nr_running > 1)
+		resched_curr(rq);
 }
