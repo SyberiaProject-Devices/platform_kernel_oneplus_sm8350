@@ -12,6 +12,7 @@
 
 #include <trace/events/sched.h>
 #include <trace/hooks/binder.h>
+#include <trace/hooks/sched.h>
 #include <../../../drivers/android/binder_internal.h>
 
 const char *task_event_names[] = {"PUT_PREV_TASK", "PICK_NEXT_TASK",
@@ -3846,10 +3847,13 @@ static void binder_restore_priority_hook(void *data,
 		task->wts.boost = bndrtrans->android_vendor_data1;
 }
 
+static void walt_cfs_mvp_do_sched_yield(void *unused, struct rq *rq);
+
 static void walt_init_hooks(void)
 {
 	register_trace_android_vh_binder_set_priority(binder_set_priority_hook, NULL);
 	register_trace_android_vh_binder_restore_priority(binder_restore_priority_hook, NULL);
+	register_trace_android_rvh_do_sched_yield(walt_cfs_mvp_do_sched_yield, NULL);
 
 }
 
@@ -4086,6 +4090,16 @@ static void walt_cfs_account_mvp_runtime(struct rq *rq, struct task_struct *curr
 	/* slice expired. re-queue the task */
 	list_del(&curr->wts.mvp_list);
 	walt_cfs_insert_mvp_task(rq, curr, false);
+}
+
+static void walt_cfs_mvp_do_sched_yield(void *unused, struct rq *rq)
+{
+	struct task_struct *curr = rq->curr;
+	int mvp_prio = walt_get_mvp_task_prio(curr);
+
+	lockdep_assert_held(&rq->lock);
+	if (mvp_prio != WALT_NOT_MVP)
+		walt_cfs_deactivate_mvp_task(curr);
 }
 
 void walt_cfs_enqueue_task(struct rq *rq, struct task_struct *p)
