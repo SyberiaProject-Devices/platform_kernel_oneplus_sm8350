@@ -80,3 +80,4 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_syscall_prctl_finished);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_gen_proc_devinfo);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_latency_hist);
 #endif
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_do_sched_yield);
