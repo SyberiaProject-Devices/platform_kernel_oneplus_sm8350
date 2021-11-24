@@ -183,6 +183,7 @@ struct task_struct init_task
 #ifdef CONFIG_SECURITY
 	.security	= NULL,
 #endif
+	.android_vendor_data1 = {0, },
 };
 EXPORT_SYMBOL(init_task);
 
