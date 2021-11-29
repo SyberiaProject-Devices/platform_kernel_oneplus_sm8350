@@ -30,6 +30,7 @@ static unsigned long scale_freq[CPU_NUM] = {
 unsigned long schedutil_cpu_util_pixel_mod(int cpu, unsigned long util_cfs,
 				 unsigned long max, enum schedutil_type type,
 				 struct task_struct *p);
+unsigned int map_scaling_freq(int cpu, unsigned int freq);
 
 /*****************************************************************************/
 /*                       Upstream Code Section                               */
@@ -572,6 +573,7 @@ static inline unsigned long em_cpu_energy_pixel_mod(struct em_perf_domain *pd,
 	scale_cpu = arch_scale_cpu_capacity(cpu);
 	ps = &pd->table[pd->nr_cap_states - 1];
 	freq = map_util_freq_pixel_mod(max_util, ps->frequency, scale_cpu, cpu);
+	freq = map_scaling_freq(cpu, freq);
 
 	for (i = 0; i < pd->nr_cap_states; i++) {
 		ps = &pd->table[i];
@@ -1276,8 +1278,6 @@ uclamp_tg_restrict_pixel_mod(struct task_struct *p, enum uclamp_id clamp_id)
 	    (clamp_id == UCLAMP_MIN && (uc_req.value < uc_max.value || !uc_req.user_defined)))
 		uc_req = uc_max;
 #endif
-
-
 
 	return uc_req;
 }
