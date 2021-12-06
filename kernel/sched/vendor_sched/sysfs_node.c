@@ -221,13 +221,13 @@ static inline unsigned int
 uclamp_idle_value(struct rq *rq, enum uclamp_id clamp_id,
 		  unsigned int clamp_value)
 {
+	uclamp_rq_set_idle(rq, clamp_id);
 	/*
 	 * Avoid blocked utilization pushing up the frequency when we go
 	 * idle (which drops the max-clamp) by retaining the last known
 	 * max-clamp.
 	 */
 	if (clamp_id == UCLAMP_MAX) {
-		rq->uclamp_flags |= UCLAMP_FLAG_IDLE;
 		return clamp_value;
 	}
 
@@ -237,10 +237,11 @@ uclamp_idle_value(struct rq *rq, enum uclamp_id clamp_id,
 static inline void uclamp_idle_reset(struct rq *rq, enum uclamp_id clamp_id,
 				     unsigned int clamp_value)
 {
-	/* Reset max-clamp retention only on idle exit */
-	if (!(rq->uclamp_flags & UCLAMP_FLAG_IDLE))
+	if (!uclamp_rq_is_idle(rq, clamp_id))
 		return;
 
+
+	uclamp_rq_reset_idle(rq, clamp_id);
 	WRITE_ONCE(rq->uclamp[clamp_id].value, clamp_value);
 }
 
@@ -336,7 +337,7 @@ uclamp_eff_get(struct task_struct *p, enum uclamp_id clamp_id)
  * This "local max aggregation" allows to track the exact "requested" value
  * for each bucket when all its RUNNABLE tasks require the same clamp.
  */
-static inline void uclamp_rq_inc_id(struct rq *rq, struct task_struct *p,
+inline void uclamp_rq_inc_id_mod(struct rq *rq, struct task_struct *p,
 				    enum uclamp_id clamp_id)
 {
 	struct uclamp_rq *uc_rq = &rq->uclamp[clamp_id];
@@ -374,7 +375,7 @@ static inline void uclamp_rq_inc_id(struct rq *rq, struct task_struct *p,
  * always valid. If it's detected they are not, as defensive programming,
  * enforce the expected state and warn.
  */
-static inline void uclamp_rq_dec_id(struct rq *rq, struct task_struct *p,
+inline void uclamp_rq_dec_id_mod(struct rq *rq, struct task_struct *p,
 				    enum uclamp_id clamp_id)
 {
 	struct uclamp_rq *uc_rq = &rq->uclamp[clamp_id];
@@ -463,11 +464,8 @@ uclamp_update_active(struct task_struct *p, enum uclamp_id clamp_id)
 	 * it will already see the updated clamp bucket value.
 	 */
 	if (p->uclamp[clamp_id].active) {
-		uclamp_rq_dec_id(rq, p, clamp_id);
-		uclamp_rq_inc_id(rq, p, clamp_id);
-
-		if (rq->uclamp_flags & UCLAMP_FLAG_IDLE)
-			rq->uclamp_flags &= ~UCLAMP_FLAG_IDLE;
+		uclamp_rq_dec_id_mod(rq, p, clamp_id);
+		uclamp_rq_inc_id_mod(rq, p, clamp_id);
 	}
 
 	task_rq_unlock(rq, p, &rf);
