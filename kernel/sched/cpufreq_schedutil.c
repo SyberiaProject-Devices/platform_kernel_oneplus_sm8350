@@ -307,7 +307,7 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 	trace_sugov_next_freq(policy->cpu, util, max, freq);
 	if (sg_policy->cached_raw_freq && freq == sg_policy->cached_raw_freq &&
 		!sg_policy->need_freq_update)
-		return sg_policy->next_freq;
+		return 0;
 
 	sg_policy->need_freq_update = false;
 
