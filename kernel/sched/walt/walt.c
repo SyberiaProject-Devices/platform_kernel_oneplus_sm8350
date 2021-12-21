@@ -3919,6 +3919,7 @@ void walt_sched_init_rq(struct rq *rq)
 	rq->wrq.cum_window_demand_scaled = 0;
 	rq->wrq.notif_pending = false;
 
+	rq->wrq.num_mvp_tasks = 0;
 	INIT_LIST_HEAD(&rq->wrq.mvp_tasks);
 }
 
@@ -4032,10 +4033,11 @@ static void walt_cfs_insert_mvp_task(struct rq *rq, struct task_struct *p,
 	list_add(&p->wts.mvp_list, pos->prev);
 }
 
-static void walt_cfs_deactivate_mvp_task(struct task_struct *p)
+static void walt_cfs_deactivate_mvp_task(struct rq *rq, struct task_struct *p)
 {
 	list_del_init(&p->wts.mvp_list);
 	p->wts.mvp_prio = WALT_NOT_MVP;
+	rq->wrq.num_mvp_tasks--;
 }
 
 /*
@@ -4086,13 +4088,14 @@ static void walt_cfs_account_mvp_runtime(struct rq *rq, struct task_struct *curr
 
 	limit = walt_cfs_mvp_task_limit(curr);
 	if (curr->wts.total_exec > limit) {
-		walt_cfs_deactivate_mvp_task(curr);
+		walt_cfs_deactivate_mvp_task(rq, curr);
 		//trace_walt_cfs_deactivate_mvp_task(curr, wts, limit);
 		return;
 	}
 
 	/* slice expired. re-queue the task */
 	list_del(&curr->wts.mvp_list);
+	rq->wrq.num_mvp_tasks--;
 	walt_cfs_insert_mvp_task(rq, curr, false);
 }
 
@@ -4103,7 +4106,7 @@ static void walt_cfs_mvp_do_sched_yield(void *unused, struct rq *rq)
 
 	lockdep_assert_held(&rq->lock);
 	if (mvp_prio != WALT_NOT_MVP)
-		walt_cfs_deactivate_mvp_task(curr);
+		walt_cfs_deactivate_mvp_task(rq, curr);
 }
 
 void walt_cfs_enqueue_task(struct rq *rq, struct task_struct *p)
@@ -4138,7 +4141,7 @@ void walt_cfs_enqueue_task(struct rq *rq, struct task_struct *p)
 void walt_cfs_dequeue_task(struct rq *rq, struct task_struct *p)
 {
 	if (!list_empty(&p->wts.mvp_list))
-		walt_cfs_deactivate_mvp_task(p);
+		walt_cfs_deactivate_mvp_task(rq, p);
 
 	/*
 	 * Reset the exec time during sleep so that it starts
