@@ -637,7 +637,8 @@ struct walt_task_struct {
 	bool				iowaited;
 	int				cidx;
 	struct list_head		mvp_list;
-	u64				sum_exec_snapshot;
+	u64				sum_exec_snapshot_for_slice;
+	u64				sum_exec_snapshot_for_total;
 	u64				total_exec;
 	int				mvp_prio;
 };

@@ -2220,7 +2220,8 @@ void init_new_task_load(struct task_struct *p)
 	p->wts.cidx = 0;
 
 	INIT_LIST_HEAD(&p->wts.mvp_list);
-	p->wts.sum_exec_snapshot = 0;
+	p->wts.sum_exec_snapshot_for_slice = 0;
+	p->wts.sum_exec_snapshot_for_total = 0;
 	p->wts.total_exec = 0;
 	p->wts.mvp_prio = WALT_NOT_MVP;
 }
@@ -4046,7 +4047,7 @@ static void walt_cfs_deactivate_mvp_task(struct task_struct *p)
  */
 static void walt_cfs_account_mvp_runtime(struct rq *rq, struct task_struct *curr)
 {
-	s64 delta;
+	u64 slice;
 	unsigned int limit;
 
 	lockdep_assert_held(&rq->lock);
@@ -4062,23 +4063,26 @@ static void walt_cfs_account_mvp_runtime(struct rq *rq, struct task_struct *curr
 		update_rq_clock(rq);
 
 	/* sum_exec_snapshot can be ahead. See below increment */
-	delta = curr->se.sum_exec_runtime - curr->wts.sum_exec_snapshot;
-	if (delta < 0)
-		delta = 0;
+	if (curr->se.sum_exec_runtime > curr->wts.sum_exec_snapshot_for_total)
+	    curr->wts.total_exec = curr->se.sum_exec_runtime - curr->wts.sum_exec_snapshot_for_total;
 	else
-		delta += rq_clock_task(rq) - curr->se.exec_start;
+	    curr->wts.total_exec = 0;
+
+	if (curr->se.sum_exec_runtime > curr->wts.sum_exec_snapshot_for_slice)
+		slice = curr->se.sum_exec_runtime - curr->wts.sum_exec_snapshot_for_slice;
+	else
+		slice = 0;
 
 	/* slice is not expired */
-	if (delta < WALT_MVP_SLICE)
+	if (slice < WALT_MVP_SLICE)
 		return;
 
+	curr->wts.sum_exec_snapshot_for_slice = curr->se.sum_exec_runtime;
 	/*
 	 * slice is expired, check if we have to deactivate the
 	 * MVP task, otherwise requeue the task in the list so
 	 * that other MVP tasks gets a chance.
 	 */
-	curr->wts.sum_exec_snapshot += delta;
-	curr->wts.total_exec += delta;
 
 	limit = walt_cfs_mvp_task_limit(curr);
 	if (curr->wts.total_exec > limit) {
@@ -4125,9 +4129,10 @@ void walt_cfs_enqueue_task(struct rq *rq, struct task_struct *p)
 	 * task runtime snapshot. From now onwards we use this point as a
 	 * baseline to enforce the slice and demotion.
 	 */
-	if (!p->wts.total_exec) /* queue after sleep */
-		p->wts.sum_exec_snapshot = p->se.sum_exec_runtime;
-
+	if (!p->wts.total_exec) /* queue after sleep */ {
+		p->wts.sum_exec_snapshot_for_total = p->se.sum_exec_runtime;
+		p->wts.sum_exec_snapshot_for_slice = p->se.sum_exec_runtime;
+	}
 }
 
 void walt_cfs_dequeue_task(struct rq *rq, struct task_struct *p)
