@@ -3028,11 +3028,6 @@ static inline unsigned int task_load(struct task_struct *p)
 	return p->wts.demand;
 }
 
-static inline unsigned int task_pl(struct task_struct *p)
-{
-	return p->wts.pred_demand;
-}
-
 static inline bool task_in_related_thread_group(struct task_struct *p)
 {
 	return (rcu_access_pointer(p->wts.grp) != NULL);

@@ -122,8 +122,6 @@ __read_mostly unsigned int sysctl_sched_asym_cap_sibling_freq_match_pct = 100;
 __read_mostly unsigned int sysctl_sched_asym_cap_sibling_freq_match_en;
 static cpumask_t asym_freq_match_cpus = CPU_MASK_NONE;
 
-static __read_mostly unsigned int sched_ravg_hist_size = 5;
-
 static __read_mostly unsigned int sched_io_is_busy = 1;
 
 __read_mostly unsigned int sysctl_sched_window_stats_policy =
@@ -1163,11 +1161,11 @@ static inline void bucket_increase(u8 *buckets, u16 *bucket_bitmask, int idx)
 	}
 }
 
-static inline int busy_to_bucket(u32 normalized_rt)
+static inline int busy_to_bucket(u16 normalized_rt)
 {
 	int bidx;
 
-	bidx = mult_frac(normalized_rt, NUM_BUSY_BUCKETS, max_task_load());
+	bidx = normalized_rt >> (SCHED_CAPACITY_SHIFT - NUM_BUSY_BUCKETS_SHIFT);
 	bidx = min(bidx, NUM_BUSY_BUCKETS - 1);
 
 	/*
@@ -1198,13 +1196,11 @@ static inline int busy_to_bucket(u32 normalized_rt)
  * to use for prediction. Once found, it returns the midpoint of that bucket.
  */
 static u32 get_pred_busy(struct task_struct *p,
-				int start, u32 runtime, u16 bucket_bitmask)
+				int start, u16 runtime_scaled, u16 bucket_bitmask)
 {
-	int i;
-	u32 dmin, dmax;
-	u64 cur_freq_runtime = 0;
+	u16 dmin, dmax;
 	int first = NUM_BUSY_BUCKETS, final = NUM_BUSY_BUCKETS;
-	u32 ret = runtime;
+	u16 ret = runtime_scaled;
 	u16 next_mask = bucket_bitmask >> start;
 
 	/* skip prediction for new tasks due to lack of history */
@@ -1228,40 +1224,31 @@ static u32 get_pred_busy(struct task_struct *p,
 		dmin = 0;
 		final = 1;
 	} else {
-		dmin = mult_frac(final, max_task_load(), NUM_BUSY_BUCKETS);
+		dmin = final << (SCHED_CAPACITY_SHIFT - NUM_BUSY_BUCKETS_SHIFT);
 	}
-	dmax = mult_frac(final + 1, max_task_load(), NUM_BUSY_BUCKETS);
+	dmax = (final + 1) << (SCHED_CAPACITY_SHIFT - NUM_BUSY_BUCKETS_SHIFT);
 
 	/*
 	 * when updating in middle of a window, runtime could be higher
 	 * than all recorded history. Always predict at least runtime.
 	 */
-	ret = max(runtime, (dmin + dmax) / 2);
+	ret = max(runtime_scaled, (u16) (((u32)dmin + dmax) / 2));
 out:
-	trace_sched_update_pred_demand(p, runtime,
-		mult_frac((unsigned int)cur_freq_runtime, 100,
-			  sched_ravg_window), ret);
+	trace_sched_update_pred_demand(p, runtime_scaled,
+		ret, start, first, final);
 	return ret;
 }
 
-static inline u32 calc_pred_demand(struct task_struct *p)
-{
-	if (p->wts.pred_demand >= p->wts.curr_window)
-		return p->wts.pred_demand;
-
-	return get_pred_busy(p, busy_to_bucket(p->wts.curr_window),
-			     p->wts.curr_window, p->wts.bucket_bitmask);
-}
-
 /*
- * predictive demand of a task is calculated at the window roll-over.
+ * predictive demand of a task was calculated at the last window roll-over.
  * if the task current window busy time exceeds the predicted
  * demand, update it here to reflect the task needs.
  */
 static void update_task_pred_demand(struct rq *rq, struct task_struct *p, int event)
 {
-	u32 new, old;
-	u16 new_scaled;
+
+	u16 new_pred_demand_scaled;
+	u16 curr_window_scaled;
 
 	if (!sched_predl)
 		return;
@@ -1284,21 +1271,20 @@ static void update_task_pred_demand(struct rq *rq, struct task_struct *p, int ev
 			return;
 	}
 
-	new = calc_pred_demand(p);
-	old = p->wts.pred_demand;
-
-	if (old >= new)
+	curr_window_scaled = scale_demand(p->wts.curr_window);
+	if (p->wts.pred_demand_scaled >= curr_window_scaled)
 		return;
 
-	new_scaled = scale_demand(new);
+	new_pred_demand_scaled = get_pred_busy(p, busy_to_bucket(curr_window_scaled),
+			     curr_window_scaled, p->wts.bucket_bitmask);
+
 	if (task_on_rq_queued(p) && (!task_has_dl_policy(p) ||
 				!p->dl.dl_throttled))
 		fixup_walt_sched_stats_common(rq, p,
 				p->wts.demand_scaled,
-				new_scaled);
+				new_pred_demand_scaled);
 
-	p->wts.pred_demand = new;
-	p->wts.pred_demand_scaled = new_scaled;
+	p->wts.pred_demand_scaled = new_pred_demand_scaled;
 }
 
 static void clear_top_tasks_bitmap(unsigned long *bitmap)
@@ -1788,21 +1774,19 @@ done:
 					new_window, full_window);
 }
 
-
-static inline u32 predict_and_update_buckets(
-			struct task_struct *p, u32 runtime) {
-
+static inline u16 predict_and_update_buckets(
+			struct task_struct *p, u16 runtime_scaled) {
 	int bidx;
-	u32 pred_demand;
+	u32 pred_demand_scaled;
 
 	if (!sched_predl)
 		return 0;
 
-	bidx = busy_to_bucket(runtime);
-	pred_demand = get_pred_busy(p, bidx, runtime, &p->wts.bucket_bitmask);
+	bidx = busy_to_bucket(runtime_scaled);
+	pred_demand_scaled = get_pred_busy(p, bidx, runtime_scaled, p->wts.bucket_bitmask);
 	bucket_increase(p->wts.busy_buckets, &p->wts.bucket_bitmask, bidx);
 
-	return pred_demand;
+	return pred_demand_scaled;
 }
 
 static int
@@ -1858,7 +1842,7 @@ static void update_history(struct rq *rq, struct task_struct *p,
 {
 	u32 *hist = &p->wts.sum_history[0];
 	int i;
-	u32 max = 0, avg, demand, pred_demand;
+	u32 max = 0, avg, demand;
 	u64 sum = 0;
 	u16 demand_scaled, pred_demand_scaled;
 
@@ -1891,9 +1875,8 @@ static void update_history(struct rq *rq, struct task_struct *p,
 		else
 			demand = max(avg, runtime);
 	}
-	pred_demand = predict_and_update_buckets(p, runtime);
+	pred_demand_scaled = predict_and_update_buckets(p, scale_demand(runtime));
 	demand_scaled = scale_demand(demand);
-	pred_demand_scaled = scale_demand(pred_demand);
 
 	/*
 	 * A throttled deadline sched class task gets dequeued without
@@ -1918,7 +1901,6 @@ static void update_history(struct rq *rq, struct task_struct *p,
 	p->wts.demand = demand;
 	p->wts.demand_scaled = demand_scaled;
 	p->wts.coloc_demand = sum >> RAVG_HIST_SHIFT;
-	p->wts.pred_demand = pred_demand;
 	p->wts.pred_demand_scaled = pred_demand_scaled;
 
 	if (demand_scaled > sysctl_sched_min_task_util_for_colocation)
@@ -2226,7 +2208,6 @@ void init_new_task_load(struct task_struct *p)
 	p->wts.demand = init_load_windows;
 	p->wts.demand_scaled = init_load_windows_scaled;
 	p->wts.coloc_demand = init_load_windows;
-	p->wts.pred_demand = 0;
 	p->wts.pred_demand_scaled = 0;
 	for (i = 0; i < RAVG_HIST_SIZE; ++i)
 		p->wts.sum_history[i] = init_load_windows;
@@ -2279,7 +2260,6 @@ void reset_task_stats(struct task_struct *p)
 		p->wts.sum_history[i] = 0;
 	p->wts.curr_window = 0;
 	p->wts.prev_window = 0;
-	p->wts.pred_demand = 0;
 	for (i = 0; i < NUM_BUSY_BUCKETS; ++i)
 		p->wts.busy_buckets[i] = 0;
 	p->wts.demand_scaled = 0;
