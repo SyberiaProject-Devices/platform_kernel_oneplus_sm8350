@@ -4093,6 +4093,9 @@ static void walt_cfs_account_mvp_runtime(struct rq *rq, struct task_struct *curr
 		return;
 	}
 
+	if (rq->wrq.num_mvp_tasks == 1)
+		return;
+
 	/* slice expired. re-queue the task */
 	list_del(&curr->wts.mvp_list);
 	rq->wrq.num_mvp_tasks--;
