@@ -583,9 +583,9 @@ static inline bool sugov_cpu_is_busy(struct sugov_cpu *sg_cpu) { return false; }
 
 #define NL_RATIO 75
 #define DEFAULT_HISPEED_LOAD 90
-#define DEFAULT_CPU0_RTG_BOOST_FREQ 1000000
-#define DEFAULT_CPU4_RTG_BOOST_FREQ 768000
-#define DEFAULT_CPU7_RTG_BOOST_FREQ 0
+#define DEFAULT_SILVER_RTG_BOOST_FREQ 1000000
+#define DEFAULT_GOLD_RTG_BOOST_FREQ 768000
+#define DEFAULT_PRIME_RTG_BOOST_FREQ 0
 static void sugov_walt_adjust(struct sugov_cpu *sg_cpu, unsigned long *util,
 			      unsigned long *max)
 {
@@ -1246,18 +1246,12 @@ static int sugov_init(struct cpufreq_policy *policy)
 	tunables->hispeed_load = DEFAULT_HISPEED_LOAD;
 	tunables->hispeed_freq = 0;
 
-	switch (policy->cpu) {
-	default:
-	case 0:
-		tunables->rtg_boost_freq = DEFAULT_CPU0_RTG_BOOST_FREQ;
-		break;
-	case 4:
-		tunables->rtg_boost_freq = DEFAULT_CPU4_RTG_BOOST_FREQ;
-		break;
-	case 7:
-		tunables->rtg_boost_freq = DEFAULT_CPU7_RTG_BOOST_FREQ;
-		break;
-	}
+	if (is_min_capacity_cpu(policy->cpu))
+		tunables->rtg_boost_freq = DEFAULT_SILVER_RTG_BOOST_FREQ;
+	else if (is_max_capacity_cpu(policy->cpu))
+		tunables->rtg_boost_freq = DEFAULT_PRIME_RTG_BOOST_FREQ;
+	else
+		tunables->rtg_boost_freq = DEFAULT_GOLD_RTG_BOOST_FREQ;
 
 	policy->governor_data = sg_policy;
 	sg_policy->tunables = tunables;
