@@ -630,6 +630,12 @@ __cpu_util_freq_walt(int cpu, struct walt_cpu_load *walt_load)
 	util = div64_u64(util * (100 + boost),
 			walt_cpu_util_freq_divisor);
 
+	/*
+	 * util is on a scale of 0 to 1024.  this is the utilization
+	 * of the cpu in the last window
+	 */
+	rq->wrq.util = util;
+
 	if (walt_load) {
 		u64 nl = cpu_rq(cpu)->wrq.nt_prev_runnable_sum +
 				rq->wrq.grp_time.nt_prev_runnable_sum;

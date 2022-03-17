@@ -184,6 +184,7 @@ struct walt_rq {
 	bool			high_irqload;
 	u64			last_cc_update;
 	u64			cycles;
+	u64			util;
 	struct list_head	mvp_tasks;
 	int			num_mvp_tasks;
 };
@@ -3376,7 +3377,8 @@ struct sched_avg_stats {
 	int nr_max;
 	int nr_scaled;
 };
-extern void sched_get_nr_running_avg(struct sched_avg_stats *stats);
+extern struct sched_avg_stats *sched_get_nr_running_avg(void);
+extern unsigned int sched_get_cluster_util_pct(struct walt_sched_cluster *cluster);
 
 #ifdef CONFIG_SMP
 #ifdef CONFIG_SCHED_WALT
