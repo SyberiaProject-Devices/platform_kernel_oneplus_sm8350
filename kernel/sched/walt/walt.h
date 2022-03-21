@@ -190,7 +190,9 @@ static inline void walt_try_to_wake_up(struct task_struct *p)
 	rq_lock_irqsave(rq, &rf);
 	old_load = task_load(p);
 	wallclock = sched_ktime_clock();
-	walt_update_task_ravg(rq->curr, rq, TASK_UPDATE, wallclock, 0);
+	if (is_idle_task(rq->curr) && p->in_iowait)
+		walt_update_task_ravg(rq->curr, rq, TASK_UPDATE, wallclock, 0);
+
 	walt_update_task_ravg(p, rq, TASK_WAKE, wallclock, 0);
 	note_task_waking(p, wallclock);
 	rq_unlock_irqrestore(rq, &rf);

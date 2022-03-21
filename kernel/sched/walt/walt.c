@@ -323,6 +323,9 @@ static void fixup_walt_sched_stats_common(struct rq *rq, struct task_struct *p,
 	walt_fixup_cum_window_demand(rq, task_load_delta);
 }
 
+static void rollover_cpu_window(struct rq *rq, bool full_window);
+static void rollover_top_tasks(struct rq *rq, bool full_window);
+
 /*
  * Demand aggregation for frequency purpose:
  *
@@ -373,9 +376,10 @@ update_window_start(struct rq *rq, u64 wallclock, int event)
 {
 	s64 delta;
 	int nr_windows;
+	bool full_window;
 	u64 old_window_start = rq->wrq.window_start;
-
 	delta = wallclock - rq->wrq.window_start;
+
 	if (delta < 0) {
 		printk_deferred("WALT-BUG CPU%d; wallclock=%llu is lesser than window_start=%llu",
 			rq->cpu, wallclock, rq->wrq.window_start);
@@ -390,6 +394,10 @@ update_window_start(struct rq *rq, u64 wallclock, int event)
 	rq->wrq.cum_window_demand_scaled =
 			rq->wrq.walt_stats.cumulative_runnable_avg_scaled;
 	rq->wrq.prev_window_size = sched_ravg_window;
+
+	full_window = nr_windows > 1;
+	rollover_cpu_window(rq, full_window);
+	rollover_top_tasks(rq, full_window);
 
 	return old_window_start;
 }
@@ -982,14 +990,20 @@ void fixup_busy_time(struct task_struct *p, int new_cpu)
 
 	wallclock = sched_ktime_clock();
 
-	walt_update_task_ravg(task_rq(p)->curr, task_rq(p),
-			 TASK_UPDATE,
-			 wallclock, 0);
-	walt_update_task_ravg(dest_rq->curr, dest_rq,
-			 TASK_UPDATE, wallclock, 0);
-
-	walt_update_task_ravg(p, task_rq(p), TASK_MIGRATE,
-			 wallclock, 0);
+	walt_update_task_ravg(p, task_rq(p), TASK_MIGRATE, wallclock, 0);
+	/*
+	 * The above update might have rolled over the
+	 * window for this migrating task. Since we are
+	 * going to adjust the destination CPU's busy time
+	 * counters with the task busytime counters, roll over
+	 * the window for the destination CPU also.
+	 *
+	 * The update_window_start() does nothing if the window
+	 * is not rolled over, so there is no need to check for
+	 * window boundary or if the counters will be accessed
+	 * or not.
+	 */
+	update_window_start(dest_rq, wallclock, TASK_UPDATE);
 
 	update_task_cpu_cycles(p, new_cpu, wallclock);
 
@@ -1593,11 +1607,6 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 
 	new_task = is_new_task(p);
 
-	if (p_is_curr_task && new_window) {
-		rollover_cpu_window(rq, full_window);
-		rollover_top_tasks(rq, full_window);
-	}
-
 	if (!account_busy_for_cpu_time(rq, p, irqtime, event))
 		goto done;
 
@@ -1638,15 +1647,17 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 		goto done;
 	}
 
+	/*
+	 * situations below this need window rollover, which should already be done
+	 * in update_window_start()
+	 */
+
 	if (!p_is_curr_task) {
 		/*
 		 * account_busy_for_cpu_time() = 1 so busy time needs
 		 * to be accounted to the current window. A new window
-		 * has also started, but p is not the current task, so the
-		 * window is not rolled over - just split up and account
-		 * as necessary into curr and prev. The window is only
-		 * rolled over when a new window is processed for the current
-		 * task.
+		 * must have been started in udpate_window_start()
+		 * - just split up and account as necessary into curr and prev.
 		 *
 		 * Irqtime can't be accounted by a task that isn't the
 		 * currently running task.
@@ -1691,8 +1702,8 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 		/*
 		 * account_busy_for_cpu_time() = 1 so busy time needs
 		 * to be accounted to the current window. A new window
-		 * has started and p is the current task so rollover is
-		 * needed. If any of these three above conditions are true
+		 * must have been started in udpate_window_start()
+		 * If any of these three above conditions are true
 		 * then this busy time can't be accounted as irqtime.
 		 *
 		 * Busy time for the idle task need not be accounted.
@@ -1724,10 +1735,6 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 			}
 		}
 
-		/*
-		 * Rollover is done here by overwriting the values in
-		 * prev_runnable_sum and curr_runnable_sum.
-		 */
 		*prev_runnable_sum += delta;
 		if (new_task)
 			*nt_prev_runnable_sum += delta;
@@ -1750,8 +1757,8 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 		/*
 		 * account_busy_for_cpu_time() = 1 so busy time needs
 		 * to be accounted to the current window. A new window
-		 * has started and p is the current task so rollover is
-		 * needed. The current task must be the idle task because
+		 * must have been started in udpate_window_start()
+		 * The current task must be the idle task because
 		 * irqtime is not accounted for any other task.
 		 *
 		 * Irqtime will be accounted each time we process IRQ activity
@@ -1763,11 +1770,11 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 		mark_start = wallclock - irqtime;
 
 		/*
-		 * Roll window over. If IRQ busy time was just in the current
+		 * If IRQ busy time was just in the current
 		 * window then that is all that need be accounted.
 		 */
 		if (mark_start > window_start) {
-			*curr_runnable_sum = scale_exec_time(irqtime, rq);
+			*curr_runnable_sum += scale_exec_time(irqtime, rq);
 			return;
 		}
 
@@ -1783,7 +1790,7 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 
 		/* Process the remaining IRQ busy time in the current window. */
 		delta = wallclock - window_start;
-		rq->wrq.curr_runnable_sum = scale_exec_time(delta, rq);
+		rq->wrq.curr_runnable_sum = +scale_exec_time(delta, rq);
 
 		return;
 	}
@@ -3264,7 +3271,6 @@ static void transfer_busy_time(struct rq *rq,
 
 	wallclock = sched_ktime_clock();
 
-	walt_update_task_ravg(rq->curr, rq, TASK_UPDATE, wallclock, 0);
 	walt_update_task_ravg(p, rq, TASK_UPDATE, wallclock, 0);
 	new_task = is_new_task(p);
 
