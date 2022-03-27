@@ -23,7 +23,6 @@ EXPORT_SYMBOL_GPL(vendor_sched_cpu_to_em_pd);
 #endif
 
 extern unsigned int vendor_sched_uclamp_threshold;
-extern unsigned int vendor_sched_high_capacity_start_cpu;
 extern unsigned int vendor_sched_util_post_init_scale;
 extern bool vendor_sched_npi_packing;
 
@@ -248,7 +247,8 @@ static inline struct task_group *css_tg(struct cgroup_subsys_state *css)
  */
 static inline bool get_prefer_idle(struct task_struct *p)
 {
-	return vg[get_vendor_task_struct(p)->group].prefer_idle;
+	return vg[get_vendor_task_struct(p)->group].prefer_idle ||
+	       get_vendor_task_struct(p)->prefer_idle ;
 }
 
 static inline bool get_prefer_high_cap(struct task_struct *p)
@@ -1229,6 +1229,7 @@ void vh_dup_task_struct_pixel_mod(void *data, struct task_struct *tsk, struct ta
 	v_tsk = get_vendor_task_struct(tsk);
 	v_orig = get_vendor_task_struct(orig);
 	v_tsk->group = v_orig->group;
+	v_tsk->prefer_idle = false;
 }
 
 void rvh_select_task_rq_fair_pixel_mod(void *data, struct task_struct *p, int prev_cpu, int sd_flag,
