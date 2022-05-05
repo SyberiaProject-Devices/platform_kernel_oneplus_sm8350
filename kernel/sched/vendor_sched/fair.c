@@ -223,12 +223,6 @@ static void set_next_buddy(struct sched_entity *se)
 	}
 }
 
-
-static inline unsigned long cfs_rq_load_avg(struct cfs_rq *cfs_rq)
-{
-	return cfs_rq->avg.load_avg;
-}
-
 /*****************************************************************************/
 /*                       New Code Section                                    */
 /*****************************************************************************/
@@ -867,10 +861,9 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, bool s
 	unsigned long capacity, wake_util, group_capacity, wake_group_util, cpu_importance;
 	unsigned long pd_max_spare_cap, pd_max_unimportant_spare_cap, pd_max_packing_spare_cap;
 	int pd_max_spare_cap_cpu, pd_best_idle_cpu, pd_most_unimportant_cpu, pd_best_packing_cpu;
+	int most_spare_cap_cpu = -1;
 	struct cpuidle_state *idle_state;
 	unsigned long util;
-	unsigned long least_load = ULONG_MAX;
-	int least_loaded_cpu = -1;
 	bool prefer_fit = prefer_idle && get_vendor_task_struct(p)->uclamp_fork_reset;
 
 	rd = cpu_rq(this_cpu)->rd;
@@ -969,12 +962,6 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, bool s
 				if (prefer_high_cap && i < HIGH_CAPACITY_CPU)
 					continue;
 
-				// Used when no candidate is found.
-				if (cfs_rq_load_avg(&cpu_rq(i)->cfs) <= least_load) {
-					least_load = cfs_rq_load_avg(&cpu_rq(i)->cfs);
-					least_loaded_cpu = i;
-				}
-
 				if (group_overutilize || cpu_overutilized(util, capacity, i))
 					continue;
 
@@ -987,14 +974,15 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, bool s
 					cpumask_set_cpu(i, &max_spare_cap);
 				}
 			} else {/* Below path is for non-prefer idle case*/
-				// Used when no candidate is found.
-				if (cfs_rq_load_avg(&cpu_rq(i)->cfs) <= least_load) {
-					least_load = cfs_rq_load_avg(&cpu_rq(i)->cfs);
-					least_loaded_cpu = i;
+				if (group_overutilize || cpu_overutilized(util, capacity, i))
+					continue;
+
+				if (spare_cap >= target_max_spare_cap) {
+					target_max_spare_cap = spare_cap;
+					most_spare_cap_cpu = i;
 				}
 
-				if (!task_fits || group_overutilize ||
-				    cpu_overutilized(util, capacity, i))
+				if (!task_fits)
 					continue;
 
 				if (spare_cap < min_t(unsigned long, task_util_est(p),
@@ -1006,7 +994,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, bool s
 				 * Find the best packing CPU with the maximum spare capacity in
 				 * the performance domain
 				 */
-				if (vendor_sched_npi_packing && !available_idle_cpu(i) &&
+				if (vendor_sched_npi_packing && !is_idle &&
 				    cpu_importance <= DEFAULT_IMPRATANCE_THRESHOLD &&
 				    spare_cap > pd_max_packing_spare_cap && capacity_curr_of(i) >=
 				    ((cpu_util_next(i, p, i) + cpu_util_rt(cpu_rq(i))) *
@@ -1031,22 +1019,15 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, bool s
 					if (exit_lat < pd_best_exit_lat) {
 						pd_max_spare_cap_cpu = i;
 						pd_best_exit_lat = exit_lat;
-					/* If exit lat is the same, compare their loading */
 					} else if (exit_lat == pd_best_exit_lat) {
-						if (cfs_rq_load_avg(&cpu_rq(i)->cfs) <
-						    cfs_rq_load_avg(
-						    &cpu_rq(pd_max_spare_cap_cpu)->cfs)) {
-							pd_max_spare_cap_cpu = i;
 						/*
-						 * If loading is the same, use a simple
-						 * randomization by choosing the first or the last
-						 * cpu if pd_max_spare_cap_cpu != prev_cpu.
+						 * A simple randomization by choosing the first or
+						 * the last cpu if pd_max_spare_cap_cpu != prev_cpu.
 						 */
-						} else if (i == prev_cpu ||
+						if (i == prev_cpu ||
 						    (pd_max_spare_cap_cpu != prev_cpu &&
-						      this_cpu % 2)) {
+						      this_cpu % 2))
 							pd_max_spare_cap_cpu = i;
-						}
 					}
 				}
 			}
@@ -1095,7 +1076,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, bool s
 	}
 
 	weight = cpumask_weight(&candidates);
-	best_energy_cpu = least_loaded_cpu;
+	best_energy_cpu = most_spare_cap_cpu;
 
 	/* Bail out if no candidate was found. */
 	if (weight == 0)
