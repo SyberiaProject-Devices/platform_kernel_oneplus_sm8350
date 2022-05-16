@@ -25,8 +25,9 @@
 #include <trace/events/thermal.h>
 
 #if IS_ENABLED(CONFIG_PIXEL_EM)
-struct em_perf_domain **pixel_cpu_cooling_cpu_to_em_pd;
-EXPORT_SYMBOL_GPL(pixel_cpu_cooling_cpu_to_em_pd);
+#include "../../kernel/sched/vendor_sched/pixel_em.h"
+struct pixel_em_profile **cpu_cooling_pixel_em_profile;
+EXPORT_SYMBOL_GPL(cpu_cooling_pixel_em_profile);
 #endif
 
 /*
@@ -116,16 +117,20 @@ static u32 cpu_freq_to_power(struct cpufreq_cooling_device *cpufreq_cdev,
 
 #if IS_ENABLED(CONFIG_PIXEL_EM)
 	{
-		struct em_perf_domain **cpu_to_em_pd = READ_ONCE(pixel_cpu_cooling_cpu_to_em_pd);
-		if (cpu_to_em_pd) {
-			int first_cpu = cpumask_first(cpufreq_cdev->policy->related_cpus);
-			struct em_perf_domain *pd = cpu_to_em_pd[first_cpu];
-
-			for (i = 0; i < (pd->nr_perf_states - 1); i++)
-				if (freq <= pd->table[i].frequency)
-					break;
-
-			return pd->table[i].power;
+		struct pixel_em_profile **profile_ptr_snapshot;
+		profile_ptr_snapshot = READ_ONCE(cpu_cooling_pixel_em_profile);
+		if (profile_ptr_snapshot) {
+			struct pixel_em_profile *profile = READ_ONCE(*profile_ptr_snapshot);
+			if (profile) {
+				int cpu = cpumask_first(cpufreq_cdev->policy->related_cpus);
+				struct pixel_em_cluster *cluster = profile->cpu_to_cluster[cpu];
+				int opp_id;
+				for (opp_id = 0; opp_id < (cluster->num_opps - 1); opp_id++) {
+					if (freq <= cluster->opps[opp_id].freq)
+						break;
+				}
+				return cluster->opps[opp_id].power;
+			}
 		}
 	}
 #endif
@@ -145,16 +150,20 @@ static u32 cpu_power_to_freq(struct cpufreq_cooling_device *cpufreq_cdev,
 
 #if IS_ENABLED(CONFIG_PIXEL_EM)
 	{
-		struct em_perf_domain **cpu_to_em_pd = READ_ONCE(pixel_cpu_cooling_cpu_to_em_pd);
-		if (cpu_to_em_pd) {
-			int first_cpu = cpumask_first(cpufreq_cdev->policy->related_cpus);
-			struct em_perf_domain *pd = cpu_to_em_pd[first_cpu];
-
-			for (i = 0; i < (pd->nr_perf_states - 1); i++)
-				if (power <= pd->table[i].power)
-					break;
-
-			return pd->table[i].frequency;
+		struct pixel_em_profile **profile_ptr_snapshot;
+		profile_ptr_snapshot = READ_ONCE(cpu_cooling_pixel_em_profile);
+		if (profile_ptr_snapshot) {
+			struct pixel_em_profile *profile = READ_ONCE(*profile_ptr_snapshot);
+			if (profile) {
+				int cpu = cpumask_first(cpufreq_cdev->policy->related_cpus);
+				struct pixel_em_cluster *cluster = profile->cpu_to_cluster[cpu];
+				int opp_id;
+				for (opp_id = 0; opp_id < (cluster->num_opps - 1); opp_id++) {
+					if (power <= cluster->opps[opp_id].power)
+						break;
+				}
+				return cluster->opps[opp_id].freq;
+			}
 		}
 	}
 #endif
