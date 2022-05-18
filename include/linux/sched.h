@@ -559,12 +559,7 @@ extern void free_task_load_ptrs(struct task_struct *p);
 extern int set_task_boost(int boost, u64 period);
 extern void walt_update_cluster_topology(void);
 
-/*
- * RAVG_HIST_SHIFT trick can only be used if RAVG_HIST_SIZE is a power of 2.
- */
 #define RAVG_HIST_SIZE 8
-#define RAVG_HIST_SHIFT 3
-#define RAVG_HIST_MASK (RAVG_HIST_SIZE - 1)
 /* wts->bucket_bitmask needs to be updated if NUM_BUSY_BUCKETS > 16 */
 #define NUM_BUSY_BUCKETS 16
 #define NUM_BUSY_BUCKETS_SHIFT 4
