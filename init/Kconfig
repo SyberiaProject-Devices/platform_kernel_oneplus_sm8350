@@ -761,10 +761,10 @@ config UCLAMP_STATS
 	depends on VENDOR_SCHED
 	default y
 
-config VH_SCHED_CPU_NR
-	int "CPU number on this platform"
+config USE_GROUP_THROTTLE
+	bool "Use group throttle of vendor groups"
 	depends on VENDOR_SCHED
-	default 8
+	default n
 
 config UCLAMP_TASK
 	bool "Enable utilization clamping for RT/FAIR tasks"
