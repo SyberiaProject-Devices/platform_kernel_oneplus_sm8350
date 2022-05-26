@@ -173,6 +173,11 @@ DECLARE_RESTRICTED_HOOK(android_rvh_update_rt_rq_load_avg,
 	TP_PROTO(u64 now, struct rq *rq, struct task_struct *tsk, int running),
 	TP_ARGS(now, rq, tsk, running), 1);
 
+DECLARE_RESTRICTED_HOOK(android_rvh_cpumask_any_and_distribute,
+	TP_PROTO(struct task_struct *p, const struct cpumask *cpu_valid_mask ,
+		const struct cpumask *new_mask, int *dest_cpu),
+	TP_ARGS(p, cpu_valid_mask, new_mask, dest_cpu), 1);
+
 /* macro versions of hooks are no longer required */
 
 #endif /* _TRACE_HOOK_SCHED_H */
