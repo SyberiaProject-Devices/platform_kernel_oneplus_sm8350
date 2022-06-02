@@ -66,6 +66,8 @@
 #include <linux/task_work.h>
 #include <linux/tsacct_kern.h>
 
+#include <linux/android_vendor.h>
+
 #include <asm/tlb.h>
 
 #ifdef CONFIG_PARAVIRT
@@ -422,8 +424,8 @@ struct task_group {
 	struct uclamp_se	uclamp[UCLAMP_CNT];
 	/* Latency-sensitive flag used for a task group */
 	unsigned int		latency_sensitive;
+	ANDROID_VENDOR_DATA_ARRAY(1, 4);
 #endif
-
 };
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
