@@ -131,18 +131,6 @@ static struct notifier_block dev_pm_qos_nb[MAX_LPM_CPUS] = {
 };
 #endif
 
-#ifdef CONFIG_SCHED_WALT
-static bool check_cpu_isolated(int cpu)
-{
-	return cpu_isolated(cpu);
-}
-#else
-static bool check_cpu_isolated(int cpu)
-{
-	return false;
-}
-#endif
-
 #ifdef CONFIG_SMP
 static int lpm_cpu_qos_notify(struct notifier_block *nb,
 		unsigned long val, void *ptr)
@@ -150,8 +138,7 @@ static int lpm_cpu_qos_notify(struct notifier_block *nb,
 	int cpu = nb - dev_pm_qos_nb;
 
 	preempt_disable();
-	if (cpu != smp_processor_id() && cpu_online(cpu) &&
-	    !check_cpu_isolated(cpu))
+	if (cpu != smp_processor_id() && cpu_online(cpu))
 		wake_up_if_idle(cpu);
 	preempt_enable();
 
@@ -629,8 +616,7 @@ static void update_history(struct cpuidle_device *dev, int idx);
 
 static inline bool lpm_disallowed(s64 sleep_us, int cpu)
 {
-	if ((sleep_disabled && !check_cpu_isolated(cpu)) ||
-						sched_lpm_disallowed_time(cpu))
+	if (sleep_disabled)
 		return true;
 
 	if (sleep_us < 0)
@@ -686,7 +672,7 @@ static int cpu_power_select(struct cpuidle_device *dev,
 		if (latency_us < lvl_latency_us)
 			break;
 
-		if (!i && !check_cpu_isolated(dev->cpu)) {
+		if (!i) {
 			/*
 			 * If the next_wake_us itself is not sufficient for
 			 * deeper low power modes than clock gating do not
