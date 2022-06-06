@@ -683,8 +683,6 @@ static inline uint32_t get_cpus_qos(const struct cpumask *mask)
 	uint32_t latency = PM_QOS_CPU_DMA_LAT_DEFAULT_VALUE;
 
 	for_each_cpu(cpu, mask) {
-		if (check_cpu_isolated(cpu))
-			continue;
 		n = cpuidle_governor_latency_req(cpu);
 		if (n < latency)
 			latency = n;
@@ -776,7 +774,7 @@ static int cpu_power_select(struct cpuidle_device *dev,
 	}
 
 done_select:
-	trace_cpu_power_select(best_level, sleep_us, latency_us, cpu->bias);
+	trace_cpu_power_select(best_level, sleep_us, latency_us, 0);
 
 	trace_cpu_pred_select(idx_restrict_time ? 2 : (ipi_predicted ?
 				3 : (predicted ? 1 : 0)), predicted, htime);
