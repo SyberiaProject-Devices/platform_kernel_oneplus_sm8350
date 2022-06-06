@@ -66,7 +66,6 @@ struct lpm_cpu {
 	void __iomem *rimps_tmr_base;
 	spinlock_t cpu_lock;
 	bool ipi_prediction;
-	uint64_t bias;
 	struct cpuidle_driver *drv;
 	struct lpm_cluster *parent;
 };

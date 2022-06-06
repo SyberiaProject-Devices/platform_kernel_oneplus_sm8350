@@ -108,7 +108,6 @@ static DEFINE_PER_CPU(struct ipi_history, cpu_ipi_history);
 static DEFINE_PER_CPU(struct lpm_cpu*, cpu_lpm);
 static bool suspend_in_progress;
 static DEFINE_PER_CPU(struct hrtimer, histtimer);
-static DEFINE_PER_CPU(struct hrtimer, biastimer);
 static struct lpm_debug *lpm_debug;
 static phys_addr_t lpm_debug_phys;
 static const int num_dbg_elements = 0x100;
@@ -442,34 +441,6 @@ static void clusttimer_start(struct lpm_cluster *cluster, uint32_t time_us)
 				HRTIMER_MODE_REL_PINNED);
 }
 
-static void biastimer_cancel(void)
-{
-	unsigned int cpu = raw_smp_processor_id();
-	struct hrtimer *cpu_biastimer = &per_cpu(biastimer, cpu);
-	ktime_t time_rem;
-
-	time_rem = hrtimer_get_remaining(cpu_biastimer);
-	if (ktime_to_us(time_rem) <= 0)
-		return;
-
-	hrtimer_try_to_cancel(cpu_biastimer);
-}
-
-static enum hrtimer_restart biastimer_fn(struct hrtimer *h)
-{
-	return HRTIMER_NORESTART;
-}
-
-static void biastimer_start(uint32_t time_ns)
-{
-	ktime_t bias_ktime = ns_to_ktime(time_ns);
-	unsigned int cpu = raw_smp_processor_id();
-	struct hrtimer *cpu_biastimer = &per_cpu(biastimer, cpu);
-
-	cpu_biastimer->function = biastimer_fn;
-	hrtimer_start(cpu_biastimer, bias_ktime, HRTIMER_MODE_REL_PINNED);
-}
-
 static uint64_t find_deviation(int *interval, uint32_t ref_stddev,
 				int64_t *stime)
 {
@@ -656,23 +627,15 @@ static void clear_predict_history(void)
 
 static void update_history(struct cpuidle_device *dev, int idx);
 
-static inline bool lpm_disallowed(s64 sleep_us, int cpu, struct lpm_cpu *pm_cpu)
+static inline bool lpm_disallowed(s64 sleep_us, int cpu)
 {
-	uint64_t bias_time = 0;
-
-	if (check_cpu_isolated(cpu))
-		goto out;
-
-	if (sleep_disabled || sleep_us < 0)
+	if ((sleep_disabled && !check_cpu_isolated(cpu)) ||
+						sched_lpm_disallowed_time(cpu))
 		return true;
 
-	bias_time = sched_lpm_disallowed_time(cpu);
-	if (bias_time) {
-		pm_cpu->bias = bias_time;
+	if (sleep_us < 0)
 		return true;
-	}
 
-out:
 	return false;
 }
 
@@ -706,7 +669,7 @@ static int cpu_power_select(struct cpuidle_device *dev,
 	uint32_t min_residency, max_residency;
 	struct power_params *pwr_params;
 
-	if (lpm_disallowed(sleep_us, dev->cpu, cpu))
+	if (lpm_disallowed(sleep_us, dev->cpu))
 		goto done_select;
 
 	idx_restrict = cpu->nlevels + 1;
@@ -1357,8 +1320,6 @@ static int psci_enter_sleep(struct lpm_cpu *cpu, int idx, bool from_idle)
 	 */
 
 	if (!idx) {
-		if (cpu->bias)
-			biastimer_start(cpu->bias);
 		stop_critical_timings();
 		cpu_do_idle();
 		start_critical_timings();
@@ -1497,10 +1458,6 @@ exit:
 	if (lpm_prediction && cpu->lpm_prediction) {
 		histtimer_cancel();
 		clusttimer_cancel();
-	}
-	if (cpu->bias) {
-		biastimer_cancel();
-		cpu->bias = 0;
 	}
 	local_irq_enable();
 	return idx;
@@ -1794,8 +1751,6 @@ static int lpm_probe(struct platform_device *pdev)
 	 */
 	for_each_possible_cpu(cpu) {
 		cpu_histtimer = &per_cpu(histtimer, cpu);
-		hrtimer_init(cpu_histtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-		cpu_histtimer = &per_cpu(biastimer, cpu);
 		hrtimer_init(cpu_histtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	}
 
