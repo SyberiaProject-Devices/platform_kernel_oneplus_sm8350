@@ -6102,8 +6102,7 @@ select_idle_capacity(struct task_struct *p, struct sched_domain *sd, int target)
 	for_each_cpu_wrap(cpu, cpus, target) {
 		unsigned long cpu_cap = capacity_of(cpu);
 
-		if ((!available_idle_cpu(cpu) && !sched_idle_cpu(cpu)) ||
-				cpu_isolated(target))
+		if (!available_idle_cpu(cpu) && !sched_idle_cpu(cpu))
 			continue;
 		if (fits_capacity(task_util, cpu_cap))
 			return cpu;
@@ -6542,14 +6541,20 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, int sy
 			if (!cpumask_test_cpu(cpu, p->cpus_ptr))
 				continue;
 
-			/* Skip CPUs that will be overutilized. */
 			util = cpu_util_next(cpu, p, cpu);
 			cpu_cap = capacity_of(cpu);
-			if (!fits_capacity(util, cpu_cap))
-				continue;
+			spare_cap = cpu_cap;
+			lsub_positive(&spare_cap, util);
 
-			/* Skip CPUs which do not fit task requirements */
-			if (cpu_cap < uclamp_task_util(p))
+			/*
+			 * Skip CPUs that cannot satisfy the capacity request.
+			 * IOW, placing the task there would make the CPU
+			 * overutilized. Take uclamp into account to see how
+			 * much capacity we can get out of the CPU; this is
+			 * aligned with schedutil_cpu_util().
+			 */
+			util = uclamp_rq_util_with(cpu_rq(cpu), util, p);
+			if (!fits_capacity(util, cpu_cap))
 				continue;
 
 			/* Always use prev_cpu as a candidate. */
@@ -6563,7 +6568,6 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, int sy
 			 * Find the CPU with the maximum spare capacity in
 			 * the performance domain
 			 */
-			spare_cap = cpu_cap - util;
 			if (spare_cap > max_spare_cap) {
 				max_spare_cap = spare_cap;
 				max_spare_cap_cpu = cpu;
