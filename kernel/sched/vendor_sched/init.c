@@ -9,6 +9,7 @@
 #include "../sched.h"
 #include <linux/cpufreq.h>
 #include <linux/module.h>
+#include <trace/hooks/cgroup.h>
 #include <trace/hooks/sched.h>
 #include <trace/hooks/topology.h>
 
@@ -45,6 +46,10 @@ extern void vh_dup_task_struct_pixel_mod(void *data, struct task_struct *tsk,
 					 struct task_struct *orig);
 
 extern struct cpufreq_governor sched_pixel_gov;
+
+extern void rvh_cgroup_force_kthread_migration_pixel_mod(void *data, struct task_struct *tsk,
+							 struct cgroup *dst_cgrp,
+							  bool *force_migration);
 
 static int vh_sched_init(void)
 {
@@ -120,6 +125,11 @@ static int vh_sched_init(void)
 		return ret;
 
 	ret = register_trace_android_vh_dup_task_struct(vh_dup_task_struct_pixel_mod, NULL);
+	if (ret)
+		return ret;
+
+	ret = register_trace_android_rvh_cgroup_force_kthread_migration(
+		rvh_cgroup_force_kthread_migration_pixel_mod, NULL);
 	if (ret)
 		return ret;
 
