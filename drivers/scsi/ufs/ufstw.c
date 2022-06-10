@@ -1113,8 +1113,8 @@ static ssize_t wbfn_enable_write(struct file *filp, const char *ubuf,
 	return cnt;
 }
 
-static const struct file_operations wbfn_enable_fops = {
-	.write = wbfn_enable_write,
+static const struct proc_ops wbfn_enable_fops = {
+	.proc_write = wbfn_enable_write,
 };
 
 static int create_wbfn_enable(void)
@@ -1199,8 +1199,8 @@ static ssize_t wbfn_dynamic_tw_enable_write(struct file *filp, const char *ubuf,
 	return cnt;
 }
 
-static const struct file_operations wbfn_dynamic_tw_enable_fops = {
-	.write = wbfn_dynamic_tw_enable_write,
+static const struct proc_ops wbfn_dynamic_tw_enable_fops = {
+	.proc_write = wbfn_dynamic_tw_enable_write,
 };
 
 static int create_wbfn_dynamic_tw_enable(void)

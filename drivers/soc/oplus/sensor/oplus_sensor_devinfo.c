@@ -1174,7 +1174,6 @@ static ssize_t row_coe_write_proc(struct file *file, const char __user *buf,
 	return count;
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 static const struct proc_ops als_type_fops = {
 	.proc_read = als_type_read_proc,
 };
@@ -1208,41 +1207,6 @@ static const struct proc_ops row_coe_fops = {
 	.proc_read = row_coe_read_proc,
 	.proc_write = row_coe_write_proc,
 };
-#else
-static struct file_operations als_type_fops = {
-	.read = als_type_read_proc,
-};
-
-static struct file_operations red_max_lux_fops = {
-	.read = red_max_lux_read_proc,
-	.write = red_max_lux_write_proc,
-};
-
-static struct file_operations white_max_lux_fops = {
-	.read = white_max_lux_read_proc,
-	.write = white_max_lux_write_proc,
-};
-
-static struct file_operations blue_max_lux_fops = {
-	.read = blue_max_lux_read_proc,
-	.write = blue_max_lux_write_proc,
-};
-
-static struct file_operations green_max_lux_fops = {
-	.read = green_max_lux_read_proc,
-	.write = green_max_lux_write_proc,
-};
-
-static struct file_operations cali_coe_fops = {
-	.read = cali_coe_read_proc,
-	.write = cali_coe_write_proc,
-};
-
-static struct file_operations row_coe_fops = {
-	.read = row_coe_read_proc,
-	.write = row_coe_write_proc,
-};
-#endif
 
 static int oplus_als_cali_data_init(void)
 {

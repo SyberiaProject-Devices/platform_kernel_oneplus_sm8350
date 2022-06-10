@@ -799,16 +799,9 @@ static ssize_t sensor_list_read_proc(struct file *file, char __user *buf,
 	return len;
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 static const struct proc_ops sensor_list_fops = {
 	.proc_read = sensor_list_read_proc,
 };
-#else
-static struct file_operations sensor_list_fops = {
-	.owner = THIS_MODULE,
-	.read = sensor_list_read_proc,
-};
-#endif
 
 #if defined(CONFIG_QCOM_KGSL)
 static int sensor_fb_notifier(struct notifier_block *nb,

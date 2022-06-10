@@ -91,17 +91,10 @@ static ssize_t press_offset_write_proc(struct file *file,
 
 	return count;
 }
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 static const struct proc_ops press_offset_fops = {
 	.proc_read = press_offset_read_proc,
 	.proc_write = press_offset_write_proc,
 };
-#else
-static struct file_operations press_offset_fops = {
-	.read = press_offset_read_proc,
-	.write = press_offset_write_proc,
-};
-#endif
 
 int oplus_press_cali_data_init(void)
 {

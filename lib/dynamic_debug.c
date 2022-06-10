@@ -906,6 +906,7 @@ static void ddebug_proc_stop(struct seq_file *m, void *p)
 	mutex_unlock(&ddebug_lock);
 }
 
+
 static const struct seq_operations ddebug_proc_seqops = {
 	.start = ddebug_proc_start,
 	.next = ddebug_proc_next,
@@ -919,6 +920,14 @@ static int ddebug_proc_open(struct inode *inode, struct file *file)
 	return seq_open_private(file, &ddebug_proc_seqops,
 				sizeof(struct ddebug_iter));
 }
+
+static const struct proc_ops proc_fops = {
+	.proc_open = ddebug_proc_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = seq_release_private,
+	.proc_write = ddebug_proc_write
+};
 
 static const struct file_operations ddebug_proc_fops = {
 	.owner = THIS_MODULE,
@@ -1062,7 +1071,7 @@ static int __init dynamic_debug_init_control(void)
 	/* Also create the control file in procfs */
 	procfs_dir = proc_mkdir("dynamic_debug", NULL);
 	if (procfs_dir)
-		proc_create("control", 0644, procfs_dir, &ddebug_proc_fops);
+		proc_create("control", 0644, procfs_dir, &proc_fops);
 
 	return 0;
 }

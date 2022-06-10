@@ -923,9 +923,9 @@ static ssize_t warp_fw_check_read(struct file *filp, char __user *buff,
 	return (len < count ? len : count);
 }
 
-static const struct file_operations warp_fw_check_proc_fops = {
-	.read = warp_fw_check_read,
-	.llseek = noop_llseek,
+static const struct proc_ops warp_fw_check_proc_fops = {
+	.proc_read = warp_fw_check_read,
+	.proc_lseek = noop_llseek,
 };
 
 static int init_proc_warp_fw_check(void)

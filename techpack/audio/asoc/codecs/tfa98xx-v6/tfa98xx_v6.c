@@ -494,11 +494,11 @@ static ssize_t kernel_debug_write(struct file *f, const char __user *buf,
 	return 0;
 }
 
-static const struct file_operations tfa98xx_debug_ops =
+static const struct proc_ops tfa98xx_debug_ops =
 {
-	.open = kernel_debug_open,
-	.read = kernel_debug_read,
-	.write = kernel_debug_write,
+	.proc_open = kernel_debug_open,
+	.proc_read = kernel_debug_read,
+	.proc_write = kernel_debug_write,
 };
 #endif /* OPLUS_ARCH_EXTENDS */
 
@@ -1778,30 +1778,30 @@ r_c_err:
 DEFINE_SIMPLE_ATTRIBUTE(tfa98xx_dbgfs_calib_otc_fops, tfa98xx_dbgfs_otc_get,
 						tfa98xx_dbgfs_otc_set, "%llu\n");
 #else
-static const struct file_operations tfa98xx_dbgfs_calib_otc_fops = {
-	.open = simple_open,
-	.read = tfa98xx_dbgfs_otc_get,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_calib_otc_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_dbgfs_otc_get,
+	.proc_lseek = default_llseek,
 };
 #endif
 #ifndef OPLUS_ARCH_EXTENDS
 DEFINE_SIMPLE_ATTRIBUTE(tfa98xx_dbgfs_calib_mtpex_fops, tfa98xx_dbgfs_mtpex_get,
 						tfa98xx_dbgfs_mtpex_set, "%llu\n");
 #else
-static const struct file_operations tfa98xx_dbgfs_calib_mtpex_fops = {
-	.open = simple_open,
-	.read = tfa98xx_dbgfs_mtpex_get,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_calib_mtpex_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_dbgfs_mtpex_get,
+	.proc_lseek = default_llseek,
 };
 #endif /* OPLUS_ARCH_EXTENDS */
 #ifndef OPLUS_ARCH_EXTENDS
 DEFINE_SIMPLE_ATTRIBUTE(tfa98xx_dbgfs_calib_temp_fops, tfa98xx_dbgfs_temp_get,
 						tfa98xx_dbgfs_temp_set, "%llu\n");
 #else
-static const struct file_operations tfa98xx_dbgfs_calib_temp_fops = {
-	.open = simple_open,
-	.read = tfa98xx_dbgfs_temp_get,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_calib_temp_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_dbgfs_temp_get,
+	.proc_lseek = default_llseek,
 };
 
 #endif
@@ -1809,67 +1809,67 @@ static const struct file_operations tfa98xx_dbgfs_calib_temp_fops = {
 DEFINE_SIMPLE_ATTRIBUTE(tfa98xx_dbgfs_pga_gain_fops, tfa98xx_dbgfs_pga_gain_get,
 						tfa98xx_dbgfs_pga_gain_set, "%llu\n");
 #else
-static const struct file_operations tfa98xx_dbgfs_pga_gain_fops = {
-	.open = simple_open,
-	.read = tfa98xx_dbgfs_pga_gain_get,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_pga_gain_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_dbgfs_pga_gain_get,
+	.proc_lseek = default_llseek,
 };
 #endif
 
-static const struct file_operations tfa98xx_dbgfs_calib_start_fops = {
-	.open = simple_open,
-	.write = tfa98xx_dbgfs_start_set,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_calib_start_fops = {
+	.proc_open = simple_open,
+	.proc_write = tfa98xx_dbgfs_start_set,
+	.proc_lseek = default_llseek,
 };
 
-static const struct file_operations tfa98xx_dbgfs_r_fops = {
-	.open = simple_open,
-	.read = tfa98xx_dbgfs_r_read,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_r_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_dbgfs_r_read,
+	.proc_lseek = default_llseek,
 };
 
 #ifdef OPLUS_ARCH_EXTENDS
-static const struct file_operations tfa98xx_dbgfs_range_fops = {
-	.open = simple_open,
-	.read = tfa98xx_dbgfs_range_read,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_range_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_dbgfs_range_read,
+	.proc_lseek = default_llseek,
 };
-static const struct file_operations tfa98xx_dbgfs_r_aging_fops = {
-	.open = simple_open,
-	.read = tfa98xx_dbgfs_r_aging_read,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_r_aging_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_dbgfs_r_aging_read,
+	.proc_lseek = default_llseek,
 };
-static const struct file_operations tfa98xx_dbgfs_r_impedance_fops = {
-	.open = simple_open,
-	.read = tfa98xx_dbgfs_r_impedance_read,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_r_impedance_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_dbgfs_r_impedance_read,
+	.proc_lseek = default_llseek,
 };
 #endif /* OPLUS_ARCH_EXTENDS */
 
-static const struct file_operations tfa98xx_dbgfs_version_fops = {
-	.open = simple_open,
-	.read = tfa98xx_dbgfs_version_read,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_version_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_dbgfs_version_read,
+	.proc_lseek = default_llseek,
 };
 
-static const struct file_operations tfa98xx_dbgfs_dsp_state_fops = {
-	.open = simple_open,
-	.read = tfa98xx_dbgfs_dsp_state_get,
-	.write = tfa98xx_dbgfs_dsp_state_set,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_dsp_state_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_dbgfs_dsp_state_get,
+	.proc_write = tfa98xx_dbgfs_dsp_state_set,
+	.proc_lseek = default_llseek,
 };
 
-static const struct file_operations tfa98xx_dbgfs_fw_state_fops = {
-	.open = simple_open,
-	.read = tfa98xx_dbgfs_fw_state_get,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_fw_state_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_dbgfs_fw_state_get,
+	.proc_lseek = default_llseek,
 };
 
-static const struct file_operations tfa98xx_dbgfs_rpc_fops = {
-	.open = simple_open,
-	.read = tfa98xx_dbgfs_rpc_read,
-	.write = tfa98xx_dbgfs_rpc_send,
-	.llseek = default_llseek,
+static const struct proc_ops tfa98xx_dbgfs_rpc_fops = {
+	.proc_open = simple_open,
+	.proc_read = tfa98xx_dbgfs_rpc_read,
+	.proc_write = tfa98xx_dbgfs_rpc_send,
+	.proc_lseek = default_llseek,
 };
 
 static void tfa98xx_debug_init(struct tfa98xx *tfa98xx, struct i2c_client *i2c)

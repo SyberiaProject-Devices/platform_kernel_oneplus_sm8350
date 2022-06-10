@@ -124,10 +124,9 @@ static ssize_t flash_proc_read(struct file *filp, char __user *buff,
 	return simple_read_from_buffer(buff, len, data, value, 1);
 }
 
-static const struct file_operations led_fops = {
-	.owner		= THIS_MODULE,
-	.read		= flash_proc_read,
-	.write		= flash_proc_write,
+static const struct proc_ops led_fops = {
+	.proc_read		= flash_proc_read,
+	.proc_write		= flash_proc_write,
 };
 
 static int flash_proc_init(struct cam_flash_ctrl *flash_ctl)

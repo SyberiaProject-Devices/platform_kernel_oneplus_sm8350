@@ -98,11 +98,10 @@ static int device_info_open(struct inode *inode, struct file *file)
 	return single_open(file, devinfo_read_func, PDE_DATA(inode));
 }
 
-static const struct file_operations device_node_fops = {
-	.owner = THIS_MODULE,
-	.open = device_info_open,
-	.read = seq_read,
-	.release = single_release,
+static const struct proc_ops device_node_fops = {
+	.proc_open = device_info_open,
+	.proc_read = seq_read,
+	.proc_release = single_release,
 };
 
 static int devinfo_read_ufsplus_func(struct seq_file *s, void *v)
@@ -122,11 +121,10 @@ static int device_info_for_ufsplus_open(struct inode *inode, struct file *file)
 }
 
 
-static const struct file_operations device_node_for_ufsplus_fops = {
-	.owner = THIS_MODULE,
-	.open = device_info_for_ufsplus_open,
-	.read = seq_read,
-	.release = single_release,
+static const struct proc_ops device_node_for_ufsplus_fops = {
+	.proc_open = device_info_for_ufsplus_open,
+	.proc_read = seq_read,
+	.proc_release = single_release,
 };
 
 static int deviceid_read_func(struct seq_file *s, void *v)
@@ -147,11 +145,10 @@ static int device_id_open(struct inode *inode, struct file *file)
 	return single_open(file, deviceid_read_func, PDE_DATA(inode));
 }
 
-static const struct file_operations device_id_fops = {
-	.owner = THIS_MODULE,
-	.open = device_id_open,
-	.read = seq_read,
-	.release = single_release,
+static const struct proc_ops device_id_fops = {
+	.proc_open = device_id_open,
+	.proc_read = seq_read,
+	.proc_release = single_release,
 };
 
 int register_device_id(struct device_info *dev_info, const char *label, const char *id_match, int id)

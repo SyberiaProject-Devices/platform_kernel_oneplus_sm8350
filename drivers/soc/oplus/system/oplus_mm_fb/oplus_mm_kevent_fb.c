@@ -420,11 +420,10 @@ static ssize_t mm_fb_read(struct file *file,
 	return count;
 }
 
-static const struct file_operations mm_fb_fops = {
-	.write = mm_fb_write,
-	.read  = mm_fb_read,
-	.open  = simple_open,
-	.owner = THIS_MODULE,
+static const struct proc_ops mm_fb_fops = {
+	.proc_write = mm_fb_write,
+	.proc_read  = mm_fb_read,
+	.proc_open  = simple_open,
 };
 
 static ssize_t adsp_crash_cause_read(struct file *file,
@@ -440,10 +439,9 @@ static ssize_t adsp_crash_cause_read(struct file *file,
 	return len;
 }
 
-static const struct file_operations adsp_crash_cause_fops = {
-	.read  = adsp_crash_cause_read,
-	.open  = simple_open,
-	.owner = THIS_MODULE,
+static const struct proc_ops adsp_crash_cause_fops = {
+	.proc_read  = adsp_crash_cause_read,
+	.proc_open  = simple_open,
 };
 
 int mm_fb_kevent_init(void)

@@ -263,15 +263,13 @@ static ssize_t ois_write_tele(struct file *p_file,
 
 
 
-static const struct file_operations proc_file_fops = {
-	.owner = THIS_MODULE,
-	.read  = ois_read,
-	.write = ois_write,
+static const struct proc_ops proc_file_fops = {
+	.proc_read  = ois_read,
+	.proc_write = ois_write,
 };
-static const struct file_operations proc_file_fops_tele = {
-	.owner = THIS_MODULE,
-	.read  = ois_read_tele,
-	.write = ois_write_tele,
+static const struct proc_ops proc_file_fops_tele = {
+	.proc_read  = ois_read_tele,
+	.proc_write = ois_write_tele,
 };
 
 int ois_start_read(void *arg, bool start)
