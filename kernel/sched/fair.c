@@ -5247,6 +5247,7 @@ void unthrottle_cfs_rq(struct cfs_rq *cfs_rq)
 		cfs_rq->h_nr_running += task_delta;
 		cfs_rq->idle_h_nr_running += idle_task_delta;
 
+		trace_android_rvh_enqueue_task_fair(rq, p, flags);
 		/* end evaluation on encountering a throttled cfs_rq */
 		if (cfs_rq_throttled(cfs_rq))
 			goto unthrottle_throttle;
@@ -6007,6 +6008,7 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 			uclamp_rq_dec_id(rq, p, UCLAMP_MIN);
 	}
 
+	trace_android_rvh_dequeue_task_fair(rq, p, flags);
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
 

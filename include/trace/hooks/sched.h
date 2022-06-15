@@ -118,6 +118,14 @@ DECLARE_HOOK(android_vh_map_util_freq,
 		unsigned long cap, unsigned long *next_freq),
 	TP_ARGS(util, freq, cap, next_freq));
 
+DECLARE_RESTRICTED_HOOK(android_rvh_enqueue_task_fair,
+	TP_PROTO(struct rq *rq, struct task_struct *p, int flags),
+	TP_ARGS(rq, p, flags), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_dequeue_task_fair,
+	TP_PROTO(struct rq *rq, struct task_struct *p, int flags),
+	TP_ARGS(rq, p, flags), 1);
+
 struct em_perf_domain;
 DECLARE_HOOK(android_vh_em_pd_energy,
 	TP_PROTO(struct em_perf_domain *pd,
