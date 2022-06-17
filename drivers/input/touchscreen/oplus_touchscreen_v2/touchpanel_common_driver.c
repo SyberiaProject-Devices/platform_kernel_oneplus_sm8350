@@ -502,8 +502,7 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
 
 	} else if (gesture_info_temp.gesture_type != UNKOWN_GESTURE
 			&& gesture_info_temp.gesture_type != FINGER_PRINTDOWN
-			&& gesture_info_temp.gesture_type != FRINGER_PRINTUP
-			&& CHK_BIT(ts->gesture_enable_indep, (1 << gesture_info_temp.gesture_type))) {
+			&& gesture_info_temp.gesture_type != FRINGER_PRINTUP) {
 		tp_memcpy(&ts->gesture, sizeof(ts->gesture), \
 			  &gesture_info_temp, sizeof(struct gesture_info), \
 			  sizeof(struct gesture_info));
@@ -1367,7 +1366,8 @@ static int init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	ts->black_gesture_support   = of_property_read_bool(np,
 				      "black_gesture_support");
 
-	ts->black_gesture_indep_support = true;
+	ts->black_gesture_indep_support = of_property_read_bool(np,
+					  "black_gesture_indep_support");
 
 	ts->gesture_test_support    = of_property_read_bool(np,
 				      "black_gesture_test_support");
