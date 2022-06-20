@@ -167,7 +167,7 @@ static bool suspend_charger = false;
 static bool vbatt_higherthan_4180mv = false;
 static bool vbatt_lowerthan_3300mv = false;
 
-static int force_fast_charge = 0;
+static int force_fast_charge = 1;
 module_param(force_fast_charge, int, 0644);
 
 static int ffc_val = 900;
