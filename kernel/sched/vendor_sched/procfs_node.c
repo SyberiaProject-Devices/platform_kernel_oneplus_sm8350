@@ -10,7 +10,7 @@
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/task.h>
-#include <linux/proc_fs.h>
+//#include <linux/proc_fs.h>
 #include <linux/uaccess.h>
 #include "../sched.h"
 #include <trace/events/power.h>
@@ -52,14 +52,12 @@ static const char *GRP_NAME[VG_MAX] = {"sys", "ta", "fg", "cam", "cam_power", "b
 			return single_open(file,\
 			__name##_show, PDE_DATA(inode));\
 		} \
-		static const struct file_operations  __name##_proc_ops = { \
-			.open	=  __name##_proc_open, \
-			.read	= seq_read, \
-			.llseek	= seq_lseek,\
-			.release = single_release,\
-			.write	=  __name##_store,\
-			.write	=  __name##_store,\
-			.owner = THIS_MODULE,\
+		static const struct proc_ops __name##_proc_ops = { \
+			.proc_open	=  __name##_proc_open, \
+			.proc_read	= seq_read, \
+			.proc_lseek	= seq_lseek,\
+			.proc_release = single_release,\
+			.proc_write	=  __name##_store,\
 		}
 
 #define PROC_OPS_RO(__name) \
@@ -69,12 +67,11 @@ static const char *GRP_NAME[VG_MAX] = {"sys", "ta", "fg", "cam", "cam_power", "b
 			return single_open(file,\
 			__name##_show, PDE_DATA(inode));\
 		} \
-		static const struct file_operations __name##_proc_ops = { \
-			.open	= __name##_proc_open, \
-			.read	= seq_read, \
-			.llseek	= seq_lseek,\
-			.release = single_release,\
-			.owner = THIS_MODULE,\
+		static const struct proc_ops __name##_proc_ops = { \
+			.proc_open	= __name##_proc_open, \
+			.proc_read	= seq_read, \
+			.proc_lseek	= seq_lseek,\
+			.proc_release = single_release,\
 		}
 
 #define PROC_OPS_WO(__name) \
@@ -84,12 +81,11 @@ static const char *GRP_NAME[VG_MAX] = {"sys", "ta", "fg", "cam", "cam_power", "b
 			return single_open(file,\
 			NULL, NULL);\
 		} \
-		static const struct file_operations __name##_proc_ops = { \
-			.open	= __name##_proc_open, \
-			.llseek	= seq_lseek,\
-			.release = single_release,\
-			.write	= __name##_store,\
-			.owner = THIS_MODULE,\
+		static const struct proc_ops __name##_proc_ops = { \
+			.proc_open	= __name##_proc_open, \
+			.proc_lseek	= seq_lseek,\
+			.proc_release = single_release,\
+			.proc_write	= __name##_store,\
 		}
 
 #define PROC_ENTRY(__name) {__stringify(__name), &__name##_proc_ops}
@@ -1217,7 +1213,7 @@ PROC_OPS_RW(util_post_init_scale);
 
 struct pentry {
 	const char *name;
-	const struct file_operations *fops;
+	const struct proc_ops *fops;
 };
 static struct pentry entries[] = {
 	// Topapp group attributes
@@ -1365,9 +1361,9 @@ int create_procfs_node(void)
 	for (i = 0; i < ARRAY_SIZE(entries); i++) {
 		umode_t mode;
 
-		if (entries[i].fops->write == NULL) {
+		if (entries[i].fops->proc_write == NULL) {
 			mode = 0444;
-		} else if(entries[i].fops->read== NULL) {
+		} else if(entries[i].fops->proc_read== NULL) {
 			mode = 0200;
 		} else {
 			mode = 0644;

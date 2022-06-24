@@ -103,9 +103,9 @@ static void cpu_frequency_cb(void *data, unsigned int freq, unsigned int cpu)
 	WRITE_ONCE(stats->last_freq, freq);
 }
 
-static const struct file_operations acpu_proc_ops = {
-	.read	= read_acpu,
-	.llseek	= default_llseek,
+static const struct proc_ops acpu_proc_ops = {
+	.proc_read	= read_acpu,
+	.proc_lseek	= default_llseek,
 };
 
 int acpu_init(void)
