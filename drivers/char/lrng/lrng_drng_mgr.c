@@ -178,6 +178,12 @@ bool lrng_sp80090c_compliant(void)
 	return fips_enabled;
 }
 
+bool lrng_ntg1_compliant(void)
+{
+	/* Implies using of /dev/random with O_SYNC */
+	return true;
+}
+
 /************************* Random Number Generation ***************************/
 
 /* Inject a data buffer into the DRNG - caller must hold its lock */
@@ -264,7 +270,7 @@ static void lrng_drng_seed(struct lrng_drng *drng)
 		 * directly from the entropy sources.
 		 */
 		if (!wq_has_sleeper(&lrng_init_wait) &&
-		    !lrng_ready_list_has_sleeper())
+		    !lrng_ready_chain_has_sleeper())
 			lrng_drng_atomic_seed_es();
 		else
 			lrng_init_ops(NULL);
