@@ -67,6 +67,7 @@ struct sde_cdev *backlight_cdev_register(struct device *dev,
 		return ERR_PTR(-ENOMEM);
 	disp_cdev->thermal_state = 0;
 	disp_cdev->bd = bd;
+#if 0
 	disp_cdev->cdev = thermal_of_cooling_device_register(dev->of_node,
 				(char *)dev_name(&bd->dev), disp_cdev,
 				&sde_cdev_ops);
@@ -74,6 +75,7 @@ struct sde_cdev *backlight_cdev_register(struct device *dev,
 		pr_err("cooling device register failed\n");
 		return (void *)disp_cdev->cdev;
 	}
+#endif
 	BLOCKING_INIT_NOTIFIER_HEAD(&disp_cdev->notifier_head);
 	blocking_notifier_chain_register(&disp_cdev->notifier_head, n);
 
