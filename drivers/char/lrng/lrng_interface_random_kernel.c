@@ -38,6 +38,28 @@ bool lrng_ready_chain_has_sleeper(void)
 	return !!lrng_ready_chain_used;
 }
 
+/*
+ * lrng_process_ready_list() - Ping all kernel internal callers waiting until
+ * the DRNG is completely initialized to inform that the DRNG reached that
+ * seed level.
+ *
+ * When the SP800-90B testing is enabled, the ping only happens if the SP800-90B
+ * startup health tests are completed. This implies that kernel internal
+ * callers always have an SP800-90B compliant noise source when being
+ * pinged.
+ */
+void lrng_process_ready_list(void)
+{
+	unsigned long flags;
+
+	if (!lrng_state_operational())
+		return;
+
+	spin_lock_irqsave(&lrng_ready_chain_lock, flags);
+	raw_notifier_call_chain(&lrng_ready_chain, 0, NULL);
+	spin_unlock_irqrestore(&lrng_ready_chain_lock, flags);
+}
+
 /************************ LRNG kernel input interfaces ************************/
 
 /*
@@ -134,6 +156,7 @@ EXPORT_SYMBOL(add_disk_randomness);
 void add_interrupt_randomness(int irq) { }
 EXPORT_SYMBOL(add_interrupt_randomness);
 #endif
+
 /*
  * unregister_random_ready_notifier() - Delete a previously registered readiness
  * callback function.
