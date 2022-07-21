@@ -85,9 +85,17 @@
 static bool limit_pd = 1;
 module_param(limit_pd, bool, 0644);
 
+static bool ignore_screen_state;
+module_param(ignore_screen_state, bool, 0644);
+
 bool oplus_chg_get_limit_pd(void)
 {
 	return limit_pd;
+}
+
+bool oplus_chg_get_ignore_screen_state(void)
+{
+	return ignore_screen_state;
 }
 
 static struct oplus_chg_chip *g_charger_chip = NULL;
