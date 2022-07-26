@@ -1263,20 +1263,21 @@ uclamp_tg_restrict_pixel_mod(struct task_struct *p, enum uclamp_id clamp_id)
 
 
 #ifdef CONFIG_UCLAMP_TASK_GROUP
-	unsigned int tg_min, tg_max, vnd_min, vnd_max, value;
+	struct uclamp_se uc_max;
+	struct uclamp_se uc_vnd;
 
 	// Task group restriction
-	tg_min = task_group(p)->uclamp[UCLAMP_MIN].value;
-	tg_max = task_group(p)->uclamp[UCLAMP_MAX].value;
+	uc_max = task_group(p)->uclamp[clamp_id];
 	// Vendor group restriction
-	vnd_min = vg[vp->group].uc_req[UCLAMP_MIN].value;
-	vnd_max = vg[vp->group].uc_req[UCLAMP_MAX].value;
+	uc_vnd = vg[vp->group].uc_req[clamp_id];
 
-	value = uc_req.value;
-	value = clamp(value, max(tg_min, vnd_min),  min(tg_max, vnd_max));
+	if ((clamp_id == UCLAMP_MAX && uc_max.value > uc_vnd.value) ||
+	    (clamp_id == UCLAMP_MIN && uc_max.value < uc_vnd.value))
+		uc_max = uc_vnd;
 
-	uc_req.value = value;
-	uc_req.bucket_id = get_bucket_id(value);
+	if ((clamp_id == UCLAMP_MAX && (uc_req.value > uc_max.value || !uc_req.user_defined)) ||
+	    (clamp_id == UCLAMP_MIN && (uc_req.value < uc_max.value || !uc_req.user_defined)))
+		uc_req = uc_max;
 #endif
 
 	return uc_req;
