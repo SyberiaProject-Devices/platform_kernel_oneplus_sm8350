@@ -3922,7 +3922,7 @@ static void aw8697_pm_qos_enable(struct aw8697 *aw8697, bool enabled)
 
 	} else {
 		if (atomic_dec_and_test(&aw8697->qos_cnt))
-			cpu_latency_qos_request_active(&pm_qos_req_vb);
+			cpu_latency_qos_remove_request(&pm_qos_req_vb);
 	}
 }
 
