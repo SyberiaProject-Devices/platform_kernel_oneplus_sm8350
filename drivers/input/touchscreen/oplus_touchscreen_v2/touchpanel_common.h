@@ -878,11 +878,7 @@ struct touchpanel_data {
 #endif
 	/******For QOS area********/
 #ifdef CONFIG_TOUCHIRQ_UPDATE_QOS
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 	struct dev_pm_qos_request pm_qos_req;
-#else
-	struct pm_qos_request pm_qos_req;
-#endif
 	int pm_qos_value;
 	int pm_qos_state;
 #endif
