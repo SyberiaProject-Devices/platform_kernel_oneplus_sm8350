@@ -813,15 +813,12 @@ static ssize_t proc_fw_update_write(struct file *file,
 		TP_INFO(ts->tp_index, "kill signal interrupt\n");
 
 #ifdef CONFIG_TOUCHIRQ_UPDATE_QOS
-
 	if (!ts->pm_qos_state) {
 		ts->pm_qos_value = PM_QOS_DEFAULT_VALUE;
-		dev_pm_qos_add_request(ts->dev, &ts->pm_qos_req, DEV_PM_QOS_RESUME_LATENCY,
-				       ts->pm_qos_value);
-		TP_INFO(ts->tp_index, "add qos request in touch driver.\n");
+		cpu_latency_qos_add_request(&ts->pm_qos_req, ts->pm_qos_value);
 		ts->pm_qos_state = 1;
+		TP_INFO(ts->tp_index, "add qos request in touch driver.\n");
 	}
-
 #endif
 
 	TP_INFO(ts->tp_index, "fw update finished\n");

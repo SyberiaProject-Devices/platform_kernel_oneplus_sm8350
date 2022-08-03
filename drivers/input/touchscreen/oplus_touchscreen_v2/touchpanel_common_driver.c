@@ -1044,7 +1044,7 @@ static irqreturn_t tp_irq_thread_fn(int irq, void *dev_id)
 
 	if (ts->pm_qos_state && !ts->is_suspended && !ts->touch_count) {
 		ts->pm_qos_value = PM_QOS_TOUCH_WAKEUP_VALUE;
-		dev_pm_qos_update_request(&ts->pm_qos_req, ts->pm_qos_value);
+		cpu_latency_qos_update_request(&ts->pm_qos_req, ts->pm_qos_value);
 	}
 
 #endif
@@ -1091,7 +1091,7 @@ exit:
 
 	if (PM_QOS_TOUCH_WAKEUP_VALUE == ts->pm_qos_value) {
 		ts->pm_qos_value = PM_QOS_DEFAULT_VALUE;
-		dev_pm_qos_update_request(&ts->pm_qos_req, ts->pm_qos_value);
+		cpu_latency_qos_update_request(&ts->pm_qos_req, ts->pm_qos_value);
 	}
 
 #endif

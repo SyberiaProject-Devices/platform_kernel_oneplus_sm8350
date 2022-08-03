@@ -878,7 +878,7 @@ struct touchpanel_data {
 #endif
 	/******For QOS area********/
 #ifdef CONFIG_TOUCHIRQ_UPDATE_QOS
-	struct dev_pm_qos_request pm_qos_req;
+	struct pm_qos_request pm_qos_req;
 	int pm_qos_value;
 	int pm_qos_state;
 #endif
