@@ -538,7 +538,7 @@ static inline unsigned long em_cpu_energy_pixel_mod(struct em_perf_domain *pd,
 				unsigned long max_util, unsigned long sum_util)
 {
 	unsigned long freq, scale_cpu;
-	struct em_cap_state *ps;
+	struct em_perf_state *ps;
 	int i, cpu;
 
 	if (!sum_util)
@@ -546,11 +546,11 @@ static inline unsigned long em_cpu_energy_pixel_mod(struct em_perf_domain *pd,
 
 	cpu = cpumask_first(to_cpumask(pd->cpus));
 	scale_cpu = arch_scale_cpu_capacity(cpu);
-	ps = &pd->table[pd->nr_cap_states - 1];
+	ps = &pd->table[pd->nr_perf_states - 1];
 	freq = map_util_freq_pixel_mod(max_util, ps->frequency, scale_cpu, cpu);
 	freq = map_scaling_freq(cpu, freq);
 
-	for (i = 0; i < pd->nr_cap_states; i++) {
+	for (i = 0; i < pd->nr_perf_states; i++) {
 		ps = &pd->table[i];
 		if (ps->frequency >= freq)
 			break;
