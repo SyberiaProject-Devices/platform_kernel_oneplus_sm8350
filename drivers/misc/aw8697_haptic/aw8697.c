@@ -3915,15 +3915,14 @@ static void aw8697_pm_qos_enable(struct aw8697 *aw8697, bool enabled)
 {
 	if (enabled) {
 		if (atomic_read(&aw8697->qos_cnt) == 0)
-			pm_qos_add_request(&pm_qos_req_vb,
-					   PM_QOS_CPU_DMA_LATENCY,
+			cpu_latency_qos_add_request(&pm_qos_req_vb,
 					   PM_QOS_VALUE_VB);
 
 		atomic_inc(&aw8697->qos_cnt);
 
 	} else {
 		if (atomic_dec_and_test(&aw8697->qos_cnt))
-			pm_qos_remove_request(&pm_qos_req_vb);
+			cpu_latency_qos_request_active(&pm_qos_req_vb);
 	}
 }
 
