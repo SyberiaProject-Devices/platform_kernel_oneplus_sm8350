@@ -5421,8 +5421,8 @@ static ssize_t hpbfn_enable_write(struct file *filp, const char *ubuf,
 	return cnt;
 }
 
-static const struct file_operations hpbfn_enable_fops = {
-	.write = hpbfn_enable_write,
+static const struct proc_ops hpbfn_enable_fops = {
+	.proc_write = hpbfn_enable_write,
 };
 
 static int create_hpbfn_enable_proc(void)
