@@ -17,6 +17,7 @@ Core utilities
    cachetlb
    refcount-vs-atomic
    cpu_hotplug
+   maple_tree
    idr
    local_ops
    workqueue
