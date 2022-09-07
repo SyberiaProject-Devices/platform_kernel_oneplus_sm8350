@@ -6743,7 +6743,8 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 			if (fbt_env->skip_cpu == i)
 				continue;
 
-			if (cpu_rq(i)->wrq.num_mvp_tasks > 0)
+			if (cpu_rq(i)->wrq.num_mvp_tasks > 0 &&
+				per_task_boost(p) != TASK_BOOST_STRICT_MAX)
 				continue;
 
 			/*
