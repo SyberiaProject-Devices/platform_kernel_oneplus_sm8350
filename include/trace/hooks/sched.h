@@ -186,6 +186,9 @@ DECLARE_HOOK(android_vh_sched_setaffinity_early,
 	TP_PROTO(struct task_struct *p, const struct cpumask *new_mask, int *retval),
 	TP_ARGS(p, new_mask, retval));
 
+DECLARE_HOOK(android_vh_rebuild_root_domains_bypass,
+	TP_PROTO(bool cpuhp_tasks_frozen, bool *bypass),
+	TP_ARGS(cpuhp_tasks_frozen, bypass));
 /* macro versions of hooks are no longer required */
 
 #endif /* _TRACE_HOOK_SCHED_H */
