@@ -11945,13 +11945,6 @@ static void task_set_group_fair(struct task_struct *p)
 
 static void task_move_group_fair(struct task_struct *p)
 {
-	/*
-	 * We couldn't detach or attach a forked task which
-	 * hasn't been woken up by wake_up_new_task().
-	 */
-	if (READ_ONCE(p->__state) == TASK_NEW)
-		return;
-
 	detach_task_cfs_rq(p);
 
 #ifdef CONFIG_SMP
