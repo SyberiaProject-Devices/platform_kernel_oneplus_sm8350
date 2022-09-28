@@ -5418,12 +5418,8 @@ static inline void sched_submit_work(struct task_struct *tsk)
 		preempt_enable_no_resched();
 	}
 
-	/*
-	 * spinlock and rwlock must not flush block requests.  This will
-	 * deadlock if the callback attempts to acquire a lock which is
-	 * already acquired.
-	 */
-	SCHED_WARN_ON(current->__state & TASK_RTLOCK_WAIT);
+	if (tsk_is_pi_blocked(tsk))
+		return;
 
 	/*
 	 * If we are going to sleep and we have plugged IO queued,
