@@ -766,6 +766,13 @@ config USE_GROUP_THROTTLE
 	depends on VENDOR_SCHED
 	default n
 
+config PIXEL_EM
+	tristate "Enable Pixel Energy Model driver"
+	depends on VENDOR_SCHED
+	default n
+	help
+	  Support Pixel Energy Model.
+
 config UCLAMP_TASK
 	bool "Enable utilization clamping for RT/FAIR tasks"
 	depends on CPU_FREQ_GOV_SCHEDUTIL
