@@ -82,31 +82,27 @@ static inline unsigned long capacity_cap(int cpu)
 	return max - used;
 }
 
+
 static int find_least_loaded_cpu(struct task_struct *p, struct cpumask *lowest_mask,
 				 struct cpumask *backup_mask)
 {
-	unsigned long util[CPU_NUM] = { 0 };
-	unsigned long capacity[CPU_NUM] = { 0 };
-	unsigned int cpu_importance[CPU_NUM] = { 0 };
-	unsigned int exit_lat[CPU_NUM] = { 0 };
-	bool task_fits[CPU_NUM] = { 0 };
-	bool overutilize[CPU_NUM] = { 0 };
 	int cpu, best_cpu = -1, best_busy_cpu, least_used_best_cpu;
-	unsigned long min_cpu_util, min_unimportant_cpu_util;
-	unsigned long min_cpu_capacity;
-	unsigned int min_exit_lat;
-	unsigned int best_busy_importance, least_importance;
+	unsigned long util, min_cpu_util, min_unimportant_cpu_util;
+	unsigned long capacity, min_cpu_capacity;
+	unsigned int exit_lat, min_exit_lat;
+	unsigned int best_busy_importance, cpu_importance, least_importance;
 	struct cpuidle_state *idle;
+	bool check_overutilized = true;
+	bool check_fit = true;
 	int prev_cpu = task_cpu(p);
+	bool overutilize, task_fits;
 	bool is_idle;
-	bool check_fit = false;
-	bool fit_and_non_overutilized_found = false, fit_and_overutilized_found = false;
 
 	if (cpumask_weight(lowest_mask) == 1)
 		return cpumask_first(lowest_mask);
 
 	rcu_read_lock();
-
+redo:
 	cpumask_clear(backup_mask);
 	min_exit_lat = UINT_MAX;
 	min_cpu_util = ULONG_MAX;
@@ -119,89 +115,82 @@ static int find_least_loaded_cpu(struct task_struct *p, struct cpumask *lowest_m
 
 	for_each_cpu(cpu, lowest_mask) {
 		is_idle = cpu_is_idle(cpu);
-		exit_lat[cpu] = 0;
-		capacity[cpu] = capacity_cap(cpu);
-		cpu_importance[cpu] = READ_ONCE(cpu_rq(cpu)->uclamp[UCLAMP_MIN].value) +
+		exit_lat = 0;
+		capacity = capacity_cap(cpu);
+		cpu_importance = READ_ONCE(cpu_rq(cpu)->uclamp[UCLAMP_MIN].value) +
 				 READ_ONCE(cpu_rq(cpu)->uclamp[UCLAMP_MAX].value);
 
 		if (is_idle) {
 			idle = idle_get_state(cpu_rq(cpu));
 
 			if (idle)
-				exit_lat[cpu] = idle->exit_latency;
+				exit_lat = idle->exit_latency;
 
 			if (sched_cpu_idle(cpu)) {
-				exit_lat[cpu] = 0;
-				cpu_importance[cpu] = 0;
+				exit_lat = 0;
+				cpu_importance = 0;
 			}
 		}
 
-		util[cpu] = cpu_util(cpu) + cpu_util_rt(cpu_rq(cpu));
+		util = cpu_util(cpu) + cpu_util_rt(cpu_rq(cpu));
 		if (cpu != prev_cpu)
-			util[cpu] += task_util(p);
+			util += task_util(p);
 
-		task_fits[cpu] = rt_task_fits_capacity(p, cpu);
-		overutilize[cpu] = cpu_overutilized(uclamp_rq_util_with(cpu_rq(cpu), util[cpu], p),
-						    capacity[cpu], cpu);
+		task_fits = rt_task_fits_capacity(p, cpu);
+		overutilize = cpu_overutilized(uclamp_rq_util_with(cpu_rq(cpu), util, p), capacity,
+					       cpu);
 
-		trace_sched_cpu_util_rt(cpu, capacity[cpu], util[cpu], exit_lat[cpu],
-					cpu_importance[cpu], task_fits[cpu], overutilize[cpu]);
+		trace_sched_cpu_util_rt(cpu, capacity, util, exit_lat, cpu_importance, task_fits,
+					overutilize);
+
+		if (check_fit && !task_fits)
+			continue;
+
+		if (check_overutilized && overutilize)
+			continue;
 
 		// To prefer idle cpu than non-idle cpu
 		if (is_idle)
-			util[cpu] = 0;
-
-		if (task_fits[cpu]) {
-			fit_and_non_overutilized_found |= !overutilize[cpu];
-			fit_and_overutilized_found |= overutilize[cpu];
-		}
-
-	}
-
-	for_each_cpu(cpu, lowest_mask) {
-		if (fit_and_non_overutilized_found && (overutilize[cpu] || !task_fits[cpu]))
-			continue;
-		else if (fit_and_overutilized_found && (!task_fits[cpu]))
-			continue;
+			util = 0;
 
 		/* select non-idle cpus without important tasks first */
-		if (exit_lat[cpu] == 0 && cpu_importance[cpu] < DEFAULT_IMPRATANCE_THRESHOLD) {
+		if (exit_lat == 0 && cpu_importance < DEFAULT_IMPRATANCE_THRESHOLD) {
 			cpumask_set_cpu(cpu, backup_mask);
 
 			/* Always prefer the least important cpu. */
-			if (best_busy_importance < cpu_importance[cpu])
+			if (best_busy_importance < cpu_importance)
 				continue;
 
 			/* If importance is the same, choose the least loaded cpu. */
-			if (best_busy_importance == cpu_importance[cpu])
-				if (min_unimportant_cpu_util < util[cpu])
+			if (best_busy_importance == cpu_importance)
+				if (min_unimportant_cpu_util < util)
 					continue;
 
-			best_busy_importance = cpu_importance[cpu];
+			best_busy_importance = cpu_importance;
 			best_busy_cpu = cpu;
-			min_unimportant_cpu_util = util[cpu];
+			min_unimportant_cpu_util = util;
 			continue;
 		}
 
 		/* Always prefer cpu with the least importance. */
-		if (cpu_importance[cpu] > least_importance)
+		if (cpu_importance > least_importance)
 			continue;
 
 		/* If cpu importance is the same: */
-		if (cpu_importance[cpu] == least_importance) {
+		if (cpu_importance == least_importance) {
 			/* Prefer the least loaded cpu. */
-			if (util[cpu] > min_cpu_util)
+			if (util > min_cpu_util)
 				continue;
 
 			/* If util is the same: */
-			if (util[cpu] == min_cpu_util) {
+			if (util == min_cpu_util) {
 				/* Prefer lower exit latency. */
-				if (exit_lat[cpu] > min_exit_lat)
+				if (exit_lat > min_exit_lat)
 					continue;
 				/* If exit latency is the same: */
-				if (exit_lat[cpu] == min_exit_lat) {
+				if (exit_lat == min_exit_lat) {
 					/* Prefer lower capacity. */
-					if (capacity[cpu] > min_cpu_capacity )
+					if (capacity > min_cpu_capacity )
 						continue;
 					/* If capacity is the same, prefer prev cpu */
 					if (least_used_best_cpu == prev_cpu)
@@ -210,11 +199,23 @@ static int find_least_loaded_cpu(struct task_struct *p, struct cpumask *lowest_m
 			}
 		}
 
-		least_importance = cpu_importance[cpu];
-		min_cpu_util = util[cpu];
-		min_cpu_capacity = capacity[cpu];
-		min_exit_lat = exit_lat[cpu];
+		least_importance = cpu_importance;
+		min_cpu_util = util;
+		min_cpu_capacity = capacity;
+		min_exit_lat = exit_lat;
 		least_used_best_cpu = cpu;
+	}
+
+	/* If there is no candidate found, redo without check overutilized. */
+	if (best_busy_cpu == -1 && least_used_best_cpu == -1 && check_overutilized) {
+		check_overutilized = false;
+		goto redo;
+	}
+
+	/* If there is no candidate found, redo without check util. */
+	if (best_busy_cpu == -1 && least_used_best_cpu == -1 && check_fit) {
+		check_fit = false;
+		goto redo;
 	}
 
 	rcu_read_unlock();
