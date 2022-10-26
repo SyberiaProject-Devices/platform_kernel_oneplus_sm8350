@@ -70,6 +70,7 @@ extern struct cpufreq_governor sched_pixel_gov;
 extern void rvh_cgroup_force_kthread_migration_pixel_mod(void *data, struct task_struct *tsk,
 							 struct cgroup *dst_cgrp,
 							  bool *force_migration);
+extern void vh_rebuild_root_domains_bypass_pixel_mod(void *data, bool tasks_frozen, bool *bypass);
 
 extern void vh_ep_create_wakeup_source_mod(void *data, char *name, int len);
 extern void vh_timerfd_create_mod(void *data, char *name, int len);
@@ -177,6 +178,11 @@ static int vh_sched_init(void)
 
 	ret = register_trace_android_rvh_cgroup_force_kthread_migration(
 		rvh_cgroup_force_kthread_migration_pixel_mod, NULL);
+	if (ret)
+		return ret;
+
+	ret = register_trace_android_vh_rebuild_root_domains_bypass(
+		vh_rebuild_root_domains_bypass_pixel_mod, NULL);
 	if (ret)
 		return ret;
 
