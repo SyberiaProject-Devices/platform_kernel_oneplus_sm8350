@@ -37,6 +37,10 @@ extern void vh_arch_set_freq_scale_pixel_mod(void *data,
 extern struct pixel_em_profile **cpu_cooling_pixel_em_profile;
 #endif
 
+#if IS_ENABLED(CONFIG_ARM_QCOM_CPUFREQ_HW)
+extern struct pixel_em_profile **cpufreq_hw_pixel_em_profile;
+#endif
+
 static int pixel_em_max_cpu;
 static int pixel_em_num_clusters;
 
@@ -849,6 +853,11 @@ static int pixel_em_drv_probe(struct platform_device *dev)
 #if IS_ENABLED(CONFIG_CPU_THERMAL)
 	pr_info("Publishing EM profile to cpu_cooling!\n");
 	WRITE_ONCE(cpu_cooling_pixel_em_profile, &active_profile);
+#endif
+
+#if IS_ENABLED(CONFIG_ARM_QCOM_CPUFREQ_HW)
+	pr_info("Publishing EM profile to qcom cpufreq-hw!\n");
+	WRITE_ONCE(cpufreq_hw_pixel_em_profile, &active_profile);
 #endif
 
 	return 0;

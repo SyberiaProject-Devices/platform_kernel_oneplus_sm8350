@@ -21,6 +21,12 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/dcvsh.h>
 
+#if IS_ENABLED(CONFIG_PIXEL_EM)
+#include "../../kernel/sched/vendor_sched/pixel_em.h"
+struct pixel_em_profile **cpufreq_hw_pixel_em_profile;
+EXPORT_SYMBOL_GPL(cpufreq_hw_pixel_em_profile);
+#endif
+
 #define LUT_MAX_ENTRIES			40U
 #define LUT_SRC				GENMASK(31, 30)
 #define LUT_L_VAL			GENMASK(7, 0)
@@ -119,6 +125,11 @@ static unsigned long limits_mitigation_notify(struct cpufreq_qcom *c,
 	u32 cpu;
 	unsigned long freq;
 	unsigned long max_capacity, capacity;
+#if IS_ENABLED(CONFIG_PIXEL_EM)
+	struct pixel_em_profile **profile_ptr_snapshot, *profile = NULL;
+	struct pixel_em_cluster *em_cluster;
+	int i;
+#endif
 
 	cpu = cpumask_first(&c->related_cpus);
 	policy = cpufreq_cpu_get_raw(cpu);
@@ -129,8 +140,27 @@ static unsigned long limits_mitigation_notify(struct cpufreq_qcom *c,
 				GENMASK(7, 0);
 		freq = DIV_ROUND_CLOSEST_ULL(freq * xo_rate, 1000);
 		if (policy) {
+#if IS_ENABLED(CONFIG_PIXEL_EM)
+			profile_ptr_snapshot = READ_ONCE(cpufreq_hw_pixel_em_profile);
+
+			if (profile_ptr_snapshot)
+				profile = READ_ONCE(*profile_ptr_snapshot);
+
+			if (profile) {
+				em_cluster = profile->cpu_to_cluster[cpu];
+				for (i = 0; i < em_cluster->num_opps - 1; i++) {
+					if (em_cluster->opps[i].freq >= policy->max)
+						break;
+				}
+				capacity = em_cluster->opps[i].capacity;
+			} else {
+				capacity = freq * max_capacity;
+				capacity /= policy->cpuinfo.max_freq;
+			}
+#else
 			capacity = freq * max_capacity;
 			capacity /= policy->cpuinfo.max_freq;
+#endif
 		}
 	} else {
 		if (!policy)
