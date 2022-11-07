@@ -58,6 +58,7 @@
 #define ARM64_WORKAROUND_1542419		47
 #define ARM64_HAS_AMU_EXTN			48
 #define ARM64_SPECTRE_BHB			49
+#define ARM64_WORKAROUND_1742098		50
 #define ARM64_HAS_32BIT_EL1			54
 
 /* kabi: reserve 50 - 62 for future cpu capabilities */
