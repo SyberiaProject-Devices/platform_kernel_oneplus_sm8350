@@ -4064,14 +4064,6 @@ static ssize_t store_sdhci_msm_pm_qos(struct device *dev,
 	return count;
 }
 
-static const struct of_device_id sdhci_msm_dt_match[] = {
-	{.compatible = "qcom,sdhci-msm-v4", .data = &sdhci_msm_mci_var},
-	{.compatible = "qcom,sdhci-msm-v5", .data = &sdhci_msm_v5_var},
-	{.compatible = "qcom,sdm670-sdhci", .data = &sdm845_sdhci_var},
-	{.compatible = "qcom,sdm845-sdhci", .data = &sdm845_sdhci_var},
-	{},
-};
-
 static void sdhci_msm_init_sysfs_gating_qos(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
