@@ -1517,6 +1517,8 @@ void mmc_blk_cqe_recovery(struct mmc_queue *mq)
 	if (err)
 		mmc_blk_reset(mq->blkdata, host, MMC_BLK_CQE_RECOVERY);
 #endif
+	mmc_blk_reset_success(mq->blkdata, MMC_BLK_CQE_RECOVERY);
+
 	pr_debug("%s: CQE recovery done\n", mmc_hostname(host));
 }
 
