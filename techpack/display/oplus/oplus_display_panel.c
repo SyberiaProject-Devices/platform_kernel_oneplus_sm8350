@@ -278,7 +278,7 @@ err_backlightbuf:
 
 static int panel_open(struct inode *inode, struct file *filp)
 {
-	if (panel_ref > 2) {
+	if (panel_ref > 3) {
 		pr_err("%s panel has already open\n", __func__);
 		return -1;
 	}

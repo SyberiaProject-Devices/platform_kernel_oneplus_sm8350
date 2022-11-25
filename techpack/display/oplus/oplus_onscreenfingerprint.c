@@ -861,8 +861,10 @@ int oplus_display_panel_notify_fp_press(void *data)
 	}
 #endif /* OPLUS_FEATURE_AOD_RAMLESS */
 
-	err = drm_atomic_commit(state);
-	drm_atomic_state_put(state);
+	if (onscreenfp_status) {
+		err = drm_atomic_commit(state);
+		drm_atomic_state_put(state);
+	}
 
 #ifdef OPLUS_FEATURE_AOD_RAMLESS
 	if (display->panel->oplus_priv.is_aod_ramless && mode_changed) {
