@@ -62,6 +62,8 @@ extern void android_vh_show_max_freq(void *unused, struct cpufreq_policy *policy
 
 extern void vh_sched_setaffinity_mod(void *data, struct task_struct *task,
 					const struct cpumask *in_mask, int *skip);
+extern void rvh_cpumask_any_and_distribute(void *data, struct task_struct *p,
+	const struct cpumask *cpu_valid_mask, const struct cpumask *new_mask, int *dest_cpu);
 
 extern struct cpufreq_governor sched_pixel_gov;
 
@@ -165,6 +167,11 @@ static int vh_sched_init(void)
 		return ret;
 
 	ret = register_trace_android_vh_dup_task_struct(vh_dup_task_struct_pixel_mod, NULL);
+	if (ret)
+		return ret;
+
+	ret = register_trace_android_rvh_cpumask_any_and_distribute(
+		rvh_cpumask_any_and_distribute, NULL);
 	if (ret)
 		return ret;
 
