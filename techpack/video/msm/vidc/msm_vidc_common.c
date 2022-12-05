@@ -1407,9 +1407,6 @@ static void msm_vidc_comm_update_ctrl_limits(struct msm_vidc_inst *inst)
 	msm_vidc_comm_update_ctrl(inst,
 			V4L2_CID_MPEG_VIDEO_HEVC_LEVEL,
 			&inst->capability.cap[CAP_HEVC_LEVEL]);
-	msm_vidc_comm_update_ctrl(inst,
-			V4L2_CID_MPEG_VIDC_VIDEO_VP9_LEVEL,
-			&inst->capability.cap[CAP_VP9_LEVEL]);
 	/*
 	 * Default value of level is unknown, but since we are not
 	 * using unknown value while updating level controls, we need
@@ -7851,7 +7848,11 @@ u32 msm_comm_get_max_framerate(struct msm_vidc_inst *inst)
 		count++;
 		avg_framerate += node->framerate;
 	}
+#ifndef OPLUS_ARCH_EXTENDS
 	avg_framerate = count ? (div_u64(avg_framerate, count)) : (1 << 16);
+#else /* OPLUS_ARCH_EXTENDS */
+	avg_framerate = count > 12 ? (div_u64(avg_framerate, count)) : (15 << 16);
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	s_vpr_l(inst->sid, "%s: fps %u, list size %u\n", __func__, avg_framerate, count);
 	mutex_unlock(&inst->timestamps.lock);
