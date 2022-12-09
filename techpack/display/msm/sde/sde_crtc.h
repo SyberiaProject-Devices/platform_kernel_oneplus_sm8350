@@ -472,7 +472,6 @@ struct sde_crtc_state {
 	struct sde_hw_dim_layer *fingerprint_dim_layer;
 	bool aod_skip_pcc;
 #endif
-	uint64_t expected_present_time;
 };
 
 enum sde_crtc_irq_state {

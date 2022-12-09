@@ -2754,20 +2754,6 @@ static void _sde_crtc_set_input_fence_timeout(struct sde_crtc_state *cstate)
 	cstate->input_fence_timeout_ns *= NSEC_PER_MSEC;
 }
 
-/**
- * _sde_crtc_set_expected_present_time - update expected present time
- * @cstate: Pointer to sde crtc state
- */
-static void _sde_crtc_set_expected_present_time(struct sde_crtc_state *cstate)
-{
-	if (!cstate) {
-		SDE_ERROR("invalid cstate\n");
-		return;
-	}
-	cstate->expected_present_time =
-		sde_crtc_get_property(cstate, CRTC_PROP_EXPECTED_PRESENT_TIME);
-}
-
 void _sde_crtc_clear_dim_layers_v1(struct drm_crtc_state *state)
 {
 	u32 i;
@@ -3558,45 +3544,6 @@ end:
 	SDE_ATRACE_END("crtc_atomic_begin");
 }
 
-#define RESERVED_TIME_FOR_KICKOFF_NS		3500000
-static void wait_earliest_process_time(struct drm_crtc *crtc)
-{
-
-	ktime_t earliest_process_time, now;
-
-	struct sde_crtc *sde_crtc;
-	struct sde_crtc_state *cstate;
-	sde_crtc = to_sde_crtc(crtc);
-	cstate = to_sde_crtc_state(crtc->state);
-
-
-	if (ktime_compare(cstate->expected_present_time,
-			RESERVED_TIME_FOR_KICKOFF_NS) <= 0)
-		return;
-
-	earliest_process_time = ktime_sub_ns(cstate->expected_present_time,
-				    RESERVED_TIME_FOR_KICKOFF_NS);
-	now = ktime_get();
-
-	if (ktime_after(earliest_process_time, now)) {
-		int32_t vrefresh = drm_mode_vrefresh(&crtc->state->mode);
-		int32_t max_delay_us = mult_frac(10000, 1000, vrefresh); // 10 * vsync period
-		int32_t delay_until_process;
-
-	//DPU_ATRACE_BEGIN("wait for earliest present time");
-
-		delay_until_process = (int32_t)ktime_us_delta(earliest_process_time, now);
-		if (delay_until_process > max_delay_us) {
-			delay_until_process = max_delay_us;
-			pr_warn("expected present time seems incorrect(now %llu, earliest %llu)\n",
-				now, earliest_process_time);
-		}
-		usleep_range(delay_until_process, delay_until_process + 10);
-
-	//DPU_ATRACE_END("wait for earliest process time");
-	}
-}
-
 static void sde_crtc_atomic_flush(struct drm_crtc *crtc,
 		struct drm_crtc_state *old_crtc_state)
 {
@@ -3700,8 +3647,6 @@ static void sde_crtc_atomic_flush(struct drm_crtc *crtc,
 			sde_plane_set_error(plane, true);
 		sde_plane_flush(plane);
 	}
-
-	wait_earliest_process_time(crtc);
 
 	/* Kickoff will be scheduled by outer layer */
 	SDE_ATRACE_END("sde_crtc_atomic_flush");
@@ -5875,10 +5820,6 @@ static void sde_crtc_install_properties(struct drm_crtc *crtc,
 		"idle_time", 0, 0, U64_MAX, 0,
 		CRTC_PROP_IDLE_TIMEOUT);
 
-	msm_property_install_range(&sde_crtc->property_info,
-		"expected_present_time", 0, 0, (uint64_t)(~((uint64_t)0)), 0,
-		CRTC_PROP_EXPECTED_PRESENT_TIME);
-
 	if (catalog->has_trusted_vm_support) {
 		int init_idx = sde_in_trusted_vm(sde_kms) ? 1 : 0;
 
@@ -6034,9 +5975,6 @@ static int sde_crtc_atomic_set_property(struct drm_crtc *crtc,
 
 	idx = msm_property_index(&sde_crtc->property_info, property);
 	switch (idx) {
-	case CRTC_PROP_EXPECTED_PRESENT_TIME:
-		_sde_crtc_set_expected_present_time(cstate);
-		break;
 	case CRTC_PROP_INPUT_FENCE_TIMEOUT:
 		_sde_crtc_set_input_fence_timeout(cstate);
 		break;
