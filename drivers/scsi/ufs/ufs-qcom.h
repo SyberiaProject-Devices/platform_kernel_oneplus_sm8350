@@ -406,6 +406,10 @@ struct ufs_qcom_host {
 	unsigned int min_cpu_scale_freq;
 	unsigned int max_cpu_scale_freq;
 	int config_cpu;
+	atomic_t hi_pri_en;
+	atomic_t therm_mitigation;
+	cpumask_t perf_mask;
+	cpumask_t def_mask;
 };
 
 static inline u32
