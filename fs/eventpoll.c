@@ -1938,7 +1938,7 @@ fetch_events:
 
 		if (!eavail && !res)
 			timed_out = !freezable_schedule_hrtimeout_range(to, slack,
-							      HRTIMER_MODE_ABS);
+									HRTIMER_MODE_ABS);
 
 		/*
 		 * We were woken up, thus go and try to harvest some events.
