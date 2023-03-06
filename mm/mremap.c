@@ -365,8 +365,8 @@ static bool move_pgt_entry(enum pgt_entry entry, struct vm_area_struct *vma,
 
 	switch (entry) {
 	case NORMAL_PMD:
-		moved = move_normal_pmd(vma, old_addr, new_addr, old_end,
-					old_entry, new_entry);
+		moved = move_normal_pmd(vma, old_addr, new_addr, old_entry,
+					new_entry);
 		break;
 	case NORMAL_PUD:
 		moved = move_normal_pud(vma, old_addr, new_addr, old_entry,
@@ -374,8 +374,8 @@ static bool move_pgt_entry(enum pgt_entry entry, struct vm_area_struct *vma,
 		break;
 	case HPAGE_PMD:
 		moved = IS_ENABLED(CONFIG_TRANSPARENT_HUGEPAGE) &&
-			move_huge_pmd(vma, old_addr, new_addr, old_end,
-					old_entry, new_entry);
+			move_huge_pmd(vma, old_addr, new_addr, old_entry,
+					 new_entry);
 		break;
 	default:
 		WARN_ON_ONCE(1);
