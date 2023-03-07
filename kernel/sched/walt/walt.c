@@ -11,6 +11,8 @@
 #include "qc_vas.h"
 
 #include <trace/events/sched.h>
+#include <trace/hooks/binder.h>
+#include <../../../drivers/android/binder_internal.h>
 
 const char *task_event_names[] = {"PUT_PREV_TASK", "PICK_NEXT_TASK",
 				  "TASK_WAKE", "TASK_MIGRATE", "TASK_UPDATE",
@@ -3823,12 +3825,36 @@ static void walt_init_window_dep(void)
 				 sysctl_walt_cpu_high_irqload, (u64) 100);
 }
 
+static void binder_set_priority_hook(void *data,
+		struct binder_transaction *bndrtrans, struct task_struct *task)
+{
+	if (bndrtrans && bndrtrans->need_reply && current->wts.boost == TASK_BOOST_STRICT_MAX) {
+		bndrtrans->android_vendor_data1  = task->wts.boost;
+		task->wts.boost = TASK_BOOST_STRICT_MAX;
+	}
+}
+
+static void binder_restore_priority_hook(void *data,
+		struct binder_transaction *bndrtrans, struct task_struct *task)
+{
+	if (task->wts.boost == TASK_BOOST_STRICT_MAX)
+		task->wts.boost = bndrtrans->android_vendor_data1;
+}
+
+static void walt_init_hooks(void)
+{
+	register_trace_android_vh_binder_set_priority(binder_set_priority_hook, NULL);
+	register_trace_android_vh_binder_restore_priority(binder_restore_priority_hook, NULL);
+
+}
+
 static void walt_init_once(void)
 {
 	init_irq_work(&walt_migration_irq_work, walt_irq_work);
 	init_irq_work(&walt_cpufreq_irq_work, walt_irq_work);
 	walt_rotate_work_init();
 	walt_init_window_dep();
+	walt_init_hooks();
 }
 
 void walt_sched_init_rq(struct rq *rq)
