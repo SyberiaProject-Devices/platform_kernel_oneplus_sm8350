@@ -6,6 +6,9 @@
 #define _TRACE_HOOK_SCHED_H
 #include <linux/tracepoint.h>
 #include <trace/hooks/vendor_hooks.h>
+/* enum uclamp_id, struct sched_entity, struct task_struct, struct uclamp_se */
+#include <linux/sched.h>
+
 /*
  * Following tracepoints are not exported in tracefs and provide a
  * mechanism for vendor modules to hook and extend functionality
@@ -68,6 +71,22 @@ DECLARE_RESTRICTED_HOOK(android_rvh_setscheduler,
 DECLARE_RESTRICTED_HOOK(android_rvh_do_sched_yield,
 	TP_PROTO(struct rq *rq),
 	TP_ARGS(rq), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_replace_next_task_fair,
+	TP_PROTO(struct rq *rq, struct task_struct **p, struct sched_entity **se, bool *repick,
+		bool simple, struct task_struct *prev),
+	TP_ARGS(rq, p, se, repick, simple, prev), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_check_preempt_wakeup_ignore,
+	TP_PROTO(struct task_struct *p, bool *ignore),
+	TP_ARGS(p, ignore), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_check_preempt_wakeup,
+	TP_PROTO(struct rq *rq, struct task_struct *p, bool *preempt, bool *nopreempt,
+		int wake_flags, struct sched_entity *se, struct sched_entity *pse,
+		int next_buddy_marked, unsigned int granularity),
+	TP_ARGS(rq, p, preempt, nopreempt, wake_flags, se, pse, next_buddy_marked,
+		granularity), 1);
 
 struct sched_group;
 DECLARE_RESTRICTED_HOOK(android_rvh_find_busiest_group,
