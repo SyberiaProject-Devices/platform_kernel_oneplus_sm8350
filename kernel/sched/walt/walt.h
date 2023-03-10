@@ -297,7 +297,7 @@ extern __read_mostly unsigned int walt_scale_demand_divisor;
 
 #define WALT_NOT_MVP		-1
 
-#define is_mvp(wts) (p->wts.mvp_prio != WALT_NOT_MVP)
+#define is_mvp(wts) (wts.mvp_prio != WALT_NOT_MVP)
 void walt_cfs_enqueue_task(struct rq *rq, struct task_struct *p);
 void walt_cfs_dequeue_task(struct rq *rq, struct task_struct *p);
 void walt_cfs_tick(struct rq *rq);

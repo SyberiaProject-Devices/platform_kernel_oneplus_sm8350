@@ -3849,6 +3849,7 @@ static void binder_restore_priority_hook(void *data,
 }
 
 static void walt_cfs_account_mvp_runtime(struct rq *rq, struct task_struct *curr);
+static inline unsigned int walt_cfs_mvp_task_limit(struct task_struct *p);
 
 /*
  * When preempt = false and nopreempt = false, we leave the preemption
@@ -3894,11 +3895,11 @@ static void walt_cfs_check_preempt_wakeup(void *unused, struct rq *rq, struct ta
 
 	/* current is the first in the queue, so no preemption */
 	*nopreempt = true;
-	//trace_walt_cfs_mvp_wakeup_nopreempt(c, wts_c, walt_cfs_mvp_task_limit(c));
+	trace_walt_cfs_mvp_wakeup_nopreempt(rq->curr, &rq->curr->wts, walt_cfs_mvp_task_limit(rq->curr));
 	return;
 preempt:
 	*preempt = true;
-	//trace_walt_cfs_mvp_wakeup_preempt(p, wts_p, walt_cfs_mvp_task_limit(p));
+	trace_walt_cfs_mvp_wakeup_preempt(p, &p->wts, walt_cfs_mvp_task_limit(p));
 }
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -3960,7 +3961,7 @@ static void walt_cfs_replace_next_task_fair(void *unused, struct rq *rq, struct 
 			set_next_entity(cfs_rq, *se);
 		}
 	}
-//	trace_walt_cfs_mvp_pick_next(mvp, wts, walt_cfs_mvp_task_limit(mvp));
+	trace_walt_cfs_mvp_pick_next(mvp, wts, walt_cfs_mvp_task_limit(mvp));
 }
 
 static void walt_cfs_mvp_do_sched_yield(void *unused, struct rq *rq);
