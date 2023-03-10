@@ -4324,8 +4324,7 @@ check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 		resched_curr(rq_of(cfs_rq));
 }
 
-static void
-set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
+void set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
 	/* 'current' is not kept within the tree. */
 	if (se->on_rq) {
@@ -4356,6 +4355,7 @@ set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 
 	se->prev_sum_exec_runtime = se->sum_exec_runtime;
 }
+EXPORT_SYMBOL_GPL(set_next_entity);
 
 static int
 wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se);

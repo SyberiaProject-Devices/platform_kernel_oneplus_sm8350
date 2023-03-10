@@ -3848,6 +3848,121 @@ static void binder_restore_priority_hook(void *data,
 		task->wts.boost = bndrtrans->android_vendor_data1;
 }
 
+static void walt_cfs_account_mvp_runtime(struct rq *rq, struct task_struct *curr);
+
+/*
+ * When preempt = false and nopreempt = false, we leave the preemption
+ * decision to CFS.
+ */
+static void walt_cfs_check_preempt_wakeup(void *unused, struct rq *rq, struct task_struct *p,
+					  bool *preempt, bool *nopreempt, int wake_flags,
+					  struct sched_entity *se, struct sched_entity *pse,
+					  int next_buddy_marked, unsigned int granularity)
+{
+	bool resched = false;
+	bool p_is_mvp, curr_is_mvp;
+
+	p_is_mvp = !list_empty(&p->wts.mvp_list) && p->wts.mvp_list.next;
+	curr_is_mvp = !list_empty(&rq->curr->wts.mvp_list) && rq->curr->wts.mvp_list.next;
+
+	/*
+	 * current is not MVP, so preemption decision
+	 * is simple.
+	 */
+	if (!curr_is_mvp) {
+		if (p_is_mvp)
+			goto preempt;
+		return; /* CFS decides preemption */
+	}
+
+	/*
+	 * current is MVP. update its runtime before deciding the
+	 * preemption.
+	 */
+	walt_cfs_account_mvp_runtime(rq, rq->curr);
+	resched = (rq->wrq.mvp_tasks.next != &rq->curr->wts.mvp_list);
+
+	/*
+	 * current is no longer eligible to run. It must have been
+	 * picked (because of MVP) ahead of other tasks in the CFS
+	 * tree, so drive preemption to pick up the next task from
+	 * the tree, which also includes picking up the first in
+	 * the MVP queue.
+	 */
+	if (resched)
+		goto preempt;
+
+	/* current is the first in the queue, so no preemption */
+	*nopreempt = true;
+	//trace_walt_cfs_mvp_wakeup_nopreempt(c, wts_c, walt_cfs_mvp_task_limit(c));
+	return;
+preempt:
+	*preempt = true;
+	//trace_walt_cfs_mvp_wakeup_preempt(p, wts_p, walt_cfs_mvp_task_limit(p));
+}
+
+#ifdef CONFIG_FAIR_GROUP_SCHED
+/* Walk up scheduling entities hierarchy */
+#define for_each_sched_entity(se) \
+		for (; se; se = se->parent)
+#else	/* !CONFIG_FAIR_GROUP_SCHED */
+#define for_each_sched_entity(se) \
+		for (; se; se = NULL)
+#endif
+
+#define wts_to_ts(wts) ({ \
+	    void *__mptr = (void *)(wts); \
+	    ((struct task_struct *)(__mptr - \
+		    offsetof(struct task_struct, wts))); })
+
+static inline struct task_struct *task_of(struct sched_entity *se)
+{
+	return container_of(se, struct task_struct, se);
+}
+
+static inline struct cfs_rq *cfs_rq_of(struct sched_entity *se)
+{
+	struct task_struct *p = task_of(se);
+	struct rq *rq = task_rq(p);
+
+	return &rq->cfs;
+}
+
+extern void set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se);
+static void walt_cfs_replace_next_task_fair(void *unused, struct rq *rq, struct task_struct **p,
+					    struct sched_entity **se, bool *repick, bool simple,
+					    struct task_struct *prev)
+{
+	//struct walt_rq *wrq = (struct walt_rq *) rq->android_vendor_data1;
+	struct walt_task_struct *wts;
+	struct task_struct *mvp;
+	struct cfs_rq *cfs_rq;
+
+	/* We don't have MVP tasks queued */
+	if (list_empty(&rq->wrq.mvp_tasks))
+		return;
+
+	/* Return the first task from MVP queue */
+	wts = list_first_entry(&rq->wrq.mvp_tasks, struct walt_task_struct, mvp_list);
+	mvp = wts_to_ts(wts);
+
+	*p = mvp;
+	*se = &mvp->se;
+	*repick = true;
+
+	if (simple) {
+		for_each_sched_entity((*se)) {
+			/*
+			 * TODO If CFS_BANDWIDTH is enabled, we might pick
+			 * from a throttled cfs_rq
+			 */
+			cfs_rq = cfs_rq_of(*se);
+			set_next_entity(cfs_rq, *se);
+		}
+	}
+//	trace_walt_cfs_mvp_pick_next(mvp, wts, walt_cfs_mvp_task_limit(mvp));
+}
+
 static void walt_cfs_mvp_do_sched_yield(void *unused, struct rq *rq);
 
 static void walt_init_hooks(void)
@@ -3855,7 +3970,8 @@ static void walt_init_hooks(void)
 	register_trace_android_vh_binder_set_priority(binder_set_priority_hook, NULL);
 	register_trace_android_vh_binder_restore_priority(binder_restore_priority_hook, NULL);
 	register_trace_android_rvh_do_sched_yield(walt_cfs_mvp_do_sched_yield, NULL);
-
+	register_trace_android_rvh_check_preempt_wakeup(walt_cfs_check_preempt_wakeup, NULL);
+	register_trace_android_rvh_replace_next_task_fair(walt_cfs_replace_next_task_fair, NULL);
 }
 
 static void walt_init_once(void)
@@ -4158,11 +4274,8 @@ void walt_cfs_dequeue_task(struct rq *rq, struct task_struct *p)
 
 void walt_cfs_tick(struct rq *rq)
 {
-
-	raw_spin_lock(&rq->lock);
-
 	if (list_empty(&rq->curr->wts.mvp_list))
-		goto out;
+		return;
 
 	walt_cfs_account_mvp_runtime(rq, rq->curr);
 	/*
@@ -4171,7 +4284,4 @@ void walt_cfs_tick(struct rq *rq)
 	 */
 	if ((rq->wrq.mvp_tasks.next != &rq->curr->wts.mvp_list) && rq->cfs.h_nr_running > 1)
 		resched_curr(rq);
-
-out:
-	raw_spin_unlock(&rq->lock);
 }

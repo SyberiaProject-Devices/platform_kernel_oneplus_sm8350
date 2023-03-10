@@ -3890,11 +3890,12 @@ void scheduler_tick(void)
 	rq_lock(rq, &rf);
 	if (idle_cpu(cpu) && is_reserved(cpu) && !rq->active_balance)
 		clear_reserved(cpu);
-	rq_unlock(rq, &rf);
-#endif
 
 	if (curr->prio >= MAX_RT_PRIO && !is_idle_task(curr))
 		walt_cfs_tick(rq);
+
+	rq_unlock(rq, &rf);
+#endif
 
 	trace_android_vh_scheduler_tick(rq);
 }
