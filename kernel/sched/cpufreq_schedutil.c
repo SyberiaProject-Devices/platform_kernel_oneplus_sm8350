@@ -25,6 +25,7 @@ struct sugov_tunables {
 	unsigned int		hispeed_freq;
 	unsigned int		rtg_boost_freq;
 	bool			pl;
+	int			boost;
 };
 
 struct sugov_policy {
@@ -586,14 +587,13 @@ static inline bool sugov_cpu_is_busy(struct sugov_cpu *sg_cpu) { return false; }
 #define DEFAULT_SILVER_RTG_BOOST_FREQ 1000000
 #define DEFAULT_GOLD_RTG_BOOST_FREQ 768000
 #define DEFAULT_PRIME_RTG_BOOST_FREQ 0
-static void sugov_walt_adjust(struct sugov_cpu *sg_cpu, unsigned long *util,
+static void sugov_walt_adjust(struct sugov_cpu *sg_cpu, unsigned long cpu_util,
+			      unsigned long nl, unsigned long *util,
 			      unsigned long *max)
 {
 	struct sugov_policy *sg_policy = sg_cpu->sg_policy;
 	bool is_migration = sg_cpu->flags & SCHED_CPUFREQ_INTERCLUSTER_MIG;
 	bool is_rtg_boost = sg_cpu->walt_load.rtgb_active;
-	unsigned long nl = sg_cpu->walt_load.nl;
-	unsigned long cpu_util = sg_cpu->util;
 	bool is_hiload;
 	unsigned long pl = sg_cpu->walt_load.pl;
 
@@ -645,9 +645,12 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 {
 	struct sugov_cpu *sg_cpu = container_of(hook, struct sugov_cpu, update_util);
 	struct sugov_policy *sg_policy = sg_cpu->sg_policy;
-	unsigned long util, max, hs_util, boost_util;
+	unsigned long util, max, hs_util, rtg_boost_util;
 	unsigned int next_f;
 	bool busy;
+	int boost = sg_policy->tunables->boost;
+
+	unsigned long j_util, j_nl;
 
 	if (!sg_policy->tunables->pl && flags & SCHED_CPUFREQ_PL)
 		return;
@@ -674,9 +677,9 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 				       sg_policy->tunables->hispeed_freq);
 		sg_policy->hispeed_util = hs_util;
 
-		boost_util = target_util(sg_policy,
+		rtg_boost_util = target_util(sg_policy,
 				    sg_policy->tunables->rtg_boost_freq);
-		sg_policy->rtg_boost_util = boost_util;
+		sg_policy->rtg_boost_util = rtg_boost_util;
 	}
 
 	util = sugov_iowait_apply(sg_cpu, time, util, max);
@@ -688,7 +691,15 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 				sg_cpu->walt_load.pl,
 				sg_cpu->walt_load.rtgb_active, flags);
 
-	sugov_walt_adjust(sg_cpu, &util, &max);
+	j_util = sg_cpu->util;
+	j_nl = sg_cpu->walt_load.nl;
+
+	if (boost) {
+		j_util = mult_frac(j_util, boost + 100, 100);
+		j_nl = mult_frac(j_nl, boost + 100, 100);
+	}
+
+	sugov_walt_adjust(sg_cpu, j_util, j_nl, &util, &max);
 	next_f = get_next_freq(sg_policy, util, max, time);
 	/*
 	 * Do not reduce the frequency if the CPU has not been idle
@@ -722,10 +733,11 @@ static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu, u64 time)
 	u64 last_freq_update_time = sg_policy->last_freq_update_time;
 	unsigned long util = 0, max = 1;
 	unsigned int j;
+	int boost = sg_policy->tunables->boost;
 
 	for_each_cpu(j, policy->cpus) {
 		struct sugov_cpu *j_sg_cpu = &per_cpu(sugov_cpu, j);
-		unsigned long j_util, j_max;
+		unsigned long j_util, j_max, j_nl;
 		s64 delta_ns;
 
 		/*
@@ -750,7 +762,13 @@ static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu, u64 time)
 		 * leading to spurious jumps to fmax.
 		 */
 		j_util = j_sg_cpu->util;
+		j_nl = j_sg_cpu->walt_load.nl;
 		j_max = j_sg_cpu->max;
+		if (boost) {
+			j_util = mult_frac(j_util, boost + 100, 100);
+			j_nl = mult_frac(j_nl, boost + 100, 100);
+		}
+
 		j_util = sugov_iowait_apply(j_sg_cpu, time, j_util, j_max);
 
 		if (j_util * max >= j_max * util) {
@@ -758,7 +776,7 @@ static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu, u64 time)
 			max = j_max;
 		}
 
-		sugov_walt_adjust(j_sg_cpu, &util, &max);
+		sugov_walt_adjust(j_sg_cpu, j_util, j_nl, &util, &max);
 	}
 
 	return get_next_freq(sg_policy, util, max, time);
@@ -769,7 +787,7 @@ sugov_update_shared(struct update_util_data *hook, u64 time, unsigned int flags)
 {
 	struct sugov_cpu *sg_cpu = container_of(hook, struct sugov_cpu, update_util);
 	struct sugov_policy *sg_policy = sg_cpu->sg_policy;
-	unsigned long hs_util, boost_util;
+	unsigned long hs_util, rtg_boost_util;
 	unsigned int next_f;
 
 	if (!sg_policy->tunables->pl && flags & SCHED_CPUFREQ_PL)
@@ -785,9 +803,9 @@ sugov_update_shared(struct update_util_data *hook, u64 time, unsigned int flags)
 					sg_policy->tunables->hispeed_freq);
 		sg_policy->hispeed_util = hs_util;
 
-		boost_util = target_util(sg_policy,
+		rtg_boost_util = target_util(sg_policy,
 				    sg_policy->tunables->rtg_boost_freq);
-		sg_policy->rtg_boost_util = boost_util;
+		sg_policy->rtg_boost_util = rtg_boost_util;
 	}
 
 	sugov_iowait_boost(sg_cpu, time, flags);
@@ -995,7 +1013,7 @@ static ssize_t rtg_boost_freq_store(struct gov_attr_set *attr_set,
 	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
 	unsigned int val;
 	struct sugov_policy *sg_policy;
-	unsigned long boost_util;
+	unsigned long rtg_boost_util;
 	unsigned long flags;
 
 	if (kstrtouint(buf, 10, &val))
@@ -1004,9 +1022,9 @@ static ssize_t rtg_boost_freq_store(struct gov_attr_set *attr_set,
 	tunables->rtg_boost_freq = val;
 	list_for_each_entry(sg_policy, &attr_set->policy_list, tunables_hook) {
 		raw_spin_lock_irqsave(&sg_policy->update_lock, flags);
-		boost_util = target_util(sg_policy,
+		rtg_boost_util = target_util(sg_policy,
 					  sg_policy->tunables->rtg_boost_freq);
-		sg_policy->rtg_boost_util = boost_util;
+		sg_policy->rtg_boost_util = rtg_boost_util;
 		raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
 	}
 
@@ -1031,12 +1049,45 @@ static ssize_t pl_store(struct gov_attr_set *attr_set, const char *buf,
 	return count;
 }
 
+static ssize_t boost_show(struct gov_attr_set *attr_set, char *buf)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", tunables->boost);
+}
+
+static ssize_t boost_store(struct gov_attr_set *attr_set, const char *buf,
+					size_t count)
+{
+	struct sugov_tunables *tunables = to_sugov_tunables(attr_set);
+	struct sugov_policy *sg_policy;
+	int val;
+
+	if (kstrtoint(buf, 10, &val))
+		return -EINVAL;
+
+	if (val < -100 || val > 1000)
+		return -EINVAL;
+
+	tunables->boost = val;
+	list_for_each_entry(sg_policy, &attr_set->policy_list, tunables_hook) {
+		struct rq *rq = cpu_rq(sg_policy->policy->cpu);
+		unsigned long flags;
+
+		raw_spin_lock_irqsave(&rq->lock, flags);
+		cpufreq_update_util(rq, SCHED_CPUFREQ_BOOST_UPDATE);
+		raw_spin_unlock_irqrestore(&rq->lock, flags);
+	}
+	return count;
+}
+
 static struct governor_attr up_rate_limit_us = __ATTR_RW(up_rate_limit_us);
 static struct governor_attr down_rate_limit_us = __ATTR_RW(down_rate_limit_us);
 static struct governor_attr hispeed_load = __ATTR_RW(hispeed_load);
 static struct governor_attr hispeed_freq = __ATTR_RW(hispeed_freq);
 static struct governor_attr rtg_boost_freq = __ATTR_RW(rtg_boost_freq);
 static struct governor_attr pl = __ATTR_RW(pl);
+static struct governor_attr boost = __ATTR_RW(boost);
 
 static struct attribute *sugov_attrs[] = {
 	&up_rate_limit_us.attr,
@@ -1045,6 +1096,7 @@ static struct attribute *sugov_attrs[] = {
 	&hispeed_freq.attr,
 	&rtg_boost_freq.attr,
 	&pl.attr,
+	&boost.attr,
 	NULL
 };
 ATTRIBUTE_GROUPS(sugov);
@@ -1170,6 +1222,7 @@ static void sugov_tunables_save(struct cpufreq_policy *policy,
 	cached->hispeed_freq = tunables->hispeed_freq;
 	cached->up_rate_limit_us = tunables->up_rate_limit_us;
 	cached->down_rate_limit_us = tunables->down_rate_limit_us;
+	cached->boost = tunables->boost;
 }
 
 static void sugov_clear_global_tunables(void)
@@ -1193,6 +1246,7 @@ static void sugov_tunables_restore(struct cpufreq_policy *policy)
 	tunables->hispeed_freq = cached->hispeed_freq;
 	tunables->up_rate_limit_us = cached->up_rate_limit_us;
 	tunables->down_rate_limit_us = cached->down_rate_limit_us;
+	tunables->boost = cached->boost;
 	sg_policy->up_rate_delay_ns = cached->up_rate_limit_us;
 	sg_policy->down_rate_delay_ns = cached->down_rate_limit_us;
 	update_min_rate_limit_ns(sg_policy);
@@ -1343,7 +1397,7 @@ static int sugov_start(struct cpufreq_policy *policy)
 		struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
 
 		cpufreq_add_update_util_hook(cpu, &sg_cpu->update_util,
-					     policy_is_shared(policy) ?
+							policy_is_shared(policy) ?
 							sugov_update_shared :
 							sugov_update_single);
 	}
