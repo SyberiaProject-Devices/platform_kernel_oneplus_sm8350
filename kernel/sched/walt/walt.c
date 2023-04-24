@@ -975,7 +975,6 @@ static inline bool is_new_task(struct task_struct *p)
 {
 	return p->wts.active_time < NEW_TASK_ACTIVE_TIME;
 }
-static inline void run_walt_irq_work_rollover(u64 old_window_start, struct rq *rq);
 
 void fixup_busy_time(struct task_struct *p, int new_cpu)
 {
@@ -989,7 +988,6 @@ void fixup_busy_time(struct task_struct *p, int new_cpu)
 	bool new_task;
 	struct walt_related_thread_group *grp;
 	long pstate;
-	u64 old_window_start;
 
 	if (!p->on_rq && p->state != TASK_WAKING)
 		return;
@@ -1014,8 +1012,7 @@ void fixup_busy_time(struct task_struct *p, int new_cpu)
 	 * window boundary or if the counters will be accessed
 	 * or not.
 	 */
-	old_window_start = update_window_start(dest_rq, wallclock, TASK_UPDATE);
-	run_walt_irq_work_rollover(old_window_start, dest_rq);
+	update_window_start(dest_rq, wallclock, TASK_UPDATE);
 
 	update_task_cpu_cycles(p, new_cpu, wallclock);
 
