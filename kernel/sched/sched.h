@@ -182,8 +182,6 @@ struct walt_rq {
 	int			curr_top;
 	bool			notif_pending;
 	bool			high_irqload;
-	u64			last_cc_update;
-	u64			cycles;
 	u64			util;
 	struct list_head	mvp_tasks;
 	int			num_mvp_tasks;
