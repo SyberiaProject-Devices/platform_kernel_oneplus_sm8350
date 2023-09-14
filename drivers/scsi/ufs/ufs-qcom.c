@@ -2911,30 +2911,6 @@ out_err:
 	host->ufs_qos = NULL;
 }
 
-static void ufs_qcom_parse_irq_affinity(struct ufs_hba *hba)
-{
-	struct device *dev = hba->dev;
-	struct device_node *np = dev->of_node;
-	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
-	int mask = 0;
-
-	if (np) {
-		of_property_read_u32(np, "qcom,prime-mask", &mask);
-		host->perf_mask.bits[0] = mask;
-		if (!cpumask_subset(&host->perf_mask, cpu_possible_mask)) {
-			dev_err(dev, "Invalid group prime mask\n");
-			host->perf_mask.bits[0] = UFS_QCOM_IRQ_PRIME_MASK;
-		}
-		mask = 0;
-		of_property_read_u32(np, "qcom,silver-mask", &mask);
-		host->def_mask.bits[0] = mask;
-		if (!cpumask_subset(&host->def_mask, cpu_possible_mask)) {
-			dev_err(dev, "Invalid group silver mask\n");
-			host->def_mask.bits[0] = UFS_QCOM_IRQ_SLVR_MASK;
-		}
-	}
-}
-
 static void ufs_qcom_parse_pm_level(struct ufs_hba *hba)
 {
 	struct device *dev = hba->dev;
@@ -3252,7 +3228,9 @@ static int ufs_qcom_init(struct ufs_hba *hba)
 	ufs_qcom_save_host_ptr(hba);
 
 	ufs_qcom_qos_init(hba);
-	ufs_qcom_parse_irq_affinity(hba);
+
+	host->perf_mask.bits[0] = UFS_QCOM_IRQ_PRIME_MASK;
+	host->def_mask.bits[0] = UFS_QCOM_IRQ_SLVR_MASK;
 
 	goto out;
 
