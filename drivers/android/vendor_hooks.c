@@ -26,6 +26,8 @@
 #include <trace/hooks/oplus_ufs.h>
 #endif
 
+#include <trace/hooks/ufshcd.h>
+
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
  * associated with them) to allow external modules to probe them.
@@ -84,3 +86,8 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_do_sched_yield);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_replace_next_task_fair);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_check_preempt_wakeup_ignore);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_check_preempt_wakeup);
+
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_prepare_command);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_update_sysfs);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_send_command);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_compl_command);
